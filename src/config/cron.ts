@@ -1,7 +1,23 @@
 import cron from 'node-cron';
-import { supabaseAdmin } from './supabase';
+import { supabaseAdmin, isSupabaseOffline } from './supabase';
 import logger from './logger';
 import { generatePDFKitFallback, uploadReportToSupabase } from '../services/pdfGenerator';
+
+// Safeguard background tasks: skip database-dependent cron runs when Supabase is offline
+const originalSchedule = cron.schedule;
+(cron as any).schedule = (expression: string, func: () => any, options?: any) => {
+  return originalSchedule(expression, async () => {
+    if (isSupabaseOffline) {
+      logger.debug(`Bypassing background cron job running on expression "${expression}" because database is offline.`);
+      return;
+    }
+    try {
+      await func();
+    } catch (err: any) {
+      logger.error(`Error executing cron job running on "${expression}": ` + err.message);
+    }
+  }, options);
+};
 
 /**
  * MODULE 5: Hostel Module Background Cron Schedulers

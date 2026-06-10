@@ -8,6 +8,7 @@ export default function StudentAttendancePage() {
   const [stats, setStats] = useState<any>({ overall: 0, total: 0, present: 0, daysNeeded: 0 });
   const [breakdown, setBreakdown] = useState<any[]>([]);
   const [heatmap, setHeatmap] = useState<any[]>([]);
+  const [logs, setLogs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Regularization Form
@@ -18,10 +19,48 @@ export default function StudentAttendancePage() {
     proof_url: ''
   });
 
+  const fallbackLogs = [
+    {
+      id: 'l-01',
+      date: '2026-06-10',
+      status: 'present',
+      method: 'qr',
+      attendance_sessions: { subject: 'Compiler Design' }
+    },
+    {
+      id: 'l-02',
+      date: '2026-06-09',
+      status: 'present',
+      method: 'biometric',
+      attendance_sessions: { subject: 'Database Systems' }
+    },
+    {
+      id: 'l-03',
+      date: '2026-06-08',
+      status: 'absent',
+      method: 'manual',
+      attendance_sessions: { subject: 'Computer Networks' }
+    },
+    {
+      id: 'l-04',
+      date: '2026-06-05',
+      status: 'present',
+      method: 'qr',
+      attendance_sessions: { subject: 'Compiler Design' }
+    },
+    {
+      id: 'l-05',
+      date: '2026-06-04',
+      status: 'present',
+      method: 'biometric',
+      attendance_sessions: { subject: 'Database Systems' }
+    }
+  ];
+
   useEffect(() => {
     // Student ID maps to the mock sandbox student Khushal
     apiGet('/core/attendance/student/b0000000-0000-0000-0000-000000000006').then(res => {
-      if (res.success) {
+      if (res && res.success) {
         setStats(res.stats || { overall: 72, total: 25, present: 18, daysNeeded: 4 });
         setBreakdown(res.breakdown || [
           { subject: 'Compiler Design', percentage: 76, total: 10, present: 8 },
@@ -29,6 +68,16 @@ export default function StudentAttendancePage() {
           { subject: 'Computer Networks', percentage: 60, total: 5, present: 3 }
         ]);
         setHeatmap(res.heatmap || []);
+        setLogs(res.logs && res.logs.length > 0 ? res.logs : fallbackLogs);
+      } else {
+        // Safe offline fallback
+        setStats({ overall: 74, total: 27, present: 20, daysNeeded: 2 });
+        setBreakdown([
+          { subject: 'Compiler Design', percentage: 80, total: 10, present: 8 },
+          { subject: 'Database Systems', percentage: 75, total: 12, present: 9 },
+          { subject: 'Computer Networks', percentage: 60, total: 5, present: 3 }
+        ]);
+        setLogs(fallbackLogs);
       }
       setIsLoading(false);
     });
@@ -157,6 +206,59 @@ export default function StudentAttendancePage() {
             </div>
           </div>
 
+        </div>
+
+        {/* Attendance Log History */}
+        <div className="glass-panel rounded-2xl p-6 border border-white/5 flex flex-col gap-4">
+          <div className="flex items-center justify-between">
+            <h3 className="font-heading font-bold text-lg text-white">Attendance Check-in History</h3>
+            <span className="text-[10px] text-[#C4B5FD]/50 font-light">Showing last {logs.length} check-ins</span>
+          </div>
+
+          <div className="overflow-x-auto w-full">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="border-b border-white/5 text-[#C4B5FD] uppercase tracking-wider text-[10px] font-semibold">
+                  <th className="py-3 px-4">Subject</th>
+                  <th className="py-3 px-4">Date</th>
+                  <th className="py-3 px-4">Verification Method</th>
+                  <th className="py-3 px-4 text-right">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {logs.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-8 text-center text-[#C4B5FD]/50 italic">No attendance records found.</td>
+                  </tr>
+                ) : (
+                  logs.map((log) => (
+                    <tr key={log.id} className="border-b border-white/5 hover:bg-white/5 transition-all">
+                      <td className="py-3.5 px-4 font-semibold text-white">{log.attendance_sessions?.subject || 'General'}</td>
+                      <td className="py-3.5 px-4 text-[#C4B5FD]/80">{new Date(log.date).toLocaleDateString()}</td>
+                      <td className="py-3.5 px-4 text-[#C4B5FD]/80 capitalize">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-medium border ${
+                          log.method === 'qr' ? 'bg-[#6C2BD9]/15 border-[#6C2BD9]/30 text-[#A78BFA]' :
+                          log.method === 'biometric' ? 'bg-amber-500/15 border-amber-500/30 text-amber-400' :
+                          'bg-blue-500/15 border-blue-500/30 text-blue-400'
+                        }`}>
+                          {log.method === 'qr' ? 'Geo-fenced QR' : log.method === 'biometric' ? 'Biometric RFID' : 'Manual Override'}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-4 text-right">
+                        <span className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          log.status === 'present' ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' :
+                          log.status === 'absent' ? 'bg-red-500/10 text-red-400 border border-red-500/20' :
+                          'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                        }`}>
+                          {log.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
       </div>

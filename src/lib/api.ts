@@ -33,78 +33,104 @@ function handleAuthError(status: number): void {
 }
 
 export async function apiGet<T = any>(endpoint: string, params?: Record<string, string>): Promise<ApiResponse<T>> {
-  const url = new URL(`${API_BASE}${endpoint}`, window.location.origin);
-  if (params) {
-    Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+  try {
+    const url = new URL(`${API_BASE}${endpoint}`, window.location.origin);
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => url.searchParams.set(key, value));
+    }
+
+    const response = await fetch(url.toString(), {
+      method: 'GET',
+      headers: getAuthHeaders(),
+    });
+
+    if (!response.ok) {
+      handleAuthError(response.status);
+    }
+
+    return await response.json();
+  } catch (err: any) {
+    console.error(`apiGet failed for ${endpoint}:`, err);
+    return { success: false, error: 'Connection failed. Please check if backend is running.' };
   }
-
-  const response = await fetch(url.toString(), {
-    method: 'GET',
-    headers: getAuthHeaders(),
-  });
-
-  if (!response.ok) {
-    handleAuthError(response.status);
-  }
-
-  return response.json();
 }
 
 export async function apiPost<T = any>(endpoint: string, body: any): Promise<ApiResponse<T>> {
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(body),
-  });
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(body),
+    });
 
-  if (!response.ok) {
-    handleAuthError(response.status);
+    if (!response.ok) {
+      handleAuthError(response.status);
+    }
+
+    return await response.json();
+  } catch (err: any) {
+    console.error(`apiPost failed for ${endpoint}:`, err);
+    return { success: false, error: 'Connection failed. Please check if backend is running.' };
   }
-
-  return response.json();
 }
 
 export async function apiPut<T = any>(endpoint: string, body: any): Promise<ApiResponse<T>> {
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    method: 'PUT',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(body),
-  });
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      method: 'PUT',
+      headers: getAuthHeaders(),
+      body: JSON.stringify(body),
+    });
 
-  if (!response.ok) {
-    handleAuthError(response.status);
+    if (!response.ok) {
+      handleAuthError(response.status);
+    }
+
+    return await response.json();
+  } catch (err: any) {
+    console.error(`apiPut failed for ${endpoint}:`, err);
+    return { success: false, error: 'Connection failed. Please check if backend is running.' };
   }
-
-  return response.json();
 }
 
 export async function apiDelete<T = any>(endpoint: string): Promise<ApiResponse<T>> {
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    method: 'DELETE',
-    headers: getAuthHeaders(),
-  });
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders(),
+    });
 
-  if (!response.ok) {
-    handleAuthError(response.status);
+    if (!response.ok) {
+      handleAuthError(response.status);
+    }
+
+    return await response.json();
+  } catch (err: any) {
+    console.error(`apiDelete failed for ${endpoint}:`, err);
+    return { success: false, error: 'Connection failed. Please check if backend is running.' };
   }
-
-  return response.json();
 }
 
 /**
  * Fetch a binary blob (e.g. PDF report download)
  */
 export async function apiFetchBlob(endpoint: string, body?: any): Promise<Blob> {
-  const response = await fetch(`${API_BASE}${endpoint}`, {
-    method: body ? 'POST' : 'GET',
-    headers: getAuthHeaders(),
-    body: body ? JSON.stringify(body) : undefined,
-  });
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      method: body ? 'POST' : 'GET',
+      headers: getAuthHeaders(),
+      body: body ? JSON.stringify(body) : undefined,
+    });
 
-  if (!response.ok) {
-    handleAuthError(response.status);
-    throw new Error('Failed to download file');
+    if (!response.ok) {
+      handleAuthError(response.status);
+      throw new Error('Failed to download file');
+    }
+
+    return await response.blob();
+  } catch (err: any) {
+    console.error(`apiFetchBlob failed for ${endpoint}:`, err);
+    throw new Error('Connection failed. Please check if backend is running.');
   }
-
-  return response.blob();
 }
+

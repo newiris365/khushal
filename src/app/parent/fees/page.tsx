@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { CreditCard, Home, Calendar, Award, IndianRupee, CheckCircle2 } from 'lucide-react';
+import { IndianRupee, CheckCircle2 } from 'lucide-react';
 import { apiGet, apiPost } from '../../../lib/api';
 
 export default function ParentFeesPage() {
@@ -80,93 +80,53 @@ export default function ParentFeesPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0D0A1A] text-white flex flex-col">
-      {/* Header */}
-      <header className="border-b border-[#6C2BD9]/25 bg-[#13102A]/80 backdrop-blur-md px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#6C2BD9] to-[#8B5CF6] flex items-center justify-center font-extrabold text-sm text-white">I</div>
-          <span className="font-extrabold text-lg text-white">IRIS 365</span>
-          <span className="text-[10px] bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-lg font-semibold uppercase tracking-wider">Parent Console</span>
-        </div>
-        <div className="flex items-center gap-4 text-xs font-semibold">
-          <span className="text-[#C4B5FD]">Logged: <strong>Mr. S. R. Gehlot</strong></span>
-        </div>
-      </header>
+    <div className="max-w-4xl mx-auto py-6 w-full flex flex-col gap-6">
+      <div className="glass-panel rounded-3xl p-8 border border-white/5">
+        <h2 className="font-heading font-extrabold text-2xl text-white">Dues & Ledger Ledger</h2>
+        <p className="text-xs text-[#C4B5FD] mt-1 font-light">Monitor outstanding billing statements, concessions, and settle balances online.</p>
 
-      {/* Main Portals */}
-      <div className="max-w-7xl mx-auto px-6 py-10 w-full grid md:grid-cols-12 gap-8 flex-1">
-        
-        {/* Navigation */}
-        <nav className="md:col-span-3 flex flex-col gap-2.5">
-          <a href="/parent/dashboard" className="w-full py-3.5 px-4 rounded-xl flex items-center gap-3 font-heading font-bold text-sm bg-[#13102A] text-[#C4B5FD] hover:bg-white/5 border border-white/5 transition-all">
-            <Home className="w-5 h-5" />
-            <span>Telemetry Summary</span>
-          </a>
-          <a href="/parent/attendance" className="w-full py-3.5 px-4 rounded-xl flex items-center gap-3 font-heading font-bold text-sm bg-[#13102A] text-[#C4B5FD] hover:bg-white/5 border border-white/5 transition-all">
-            <Calendar className="w-5 h-5" />
-            <span>Child Attendance</span>
-          </a>
-          <a href="/parent/fees" className="w-full py-3.5 px-4 rounded-xl flex items-center gap-3 font-heading font-bold text-sm bg-[#6C2BD9] text-white transition-all">
-            <CreditCard className="w-5 h-5" />
-            <span>Pay Dues Ledger</span>
-          </a>
-          <a href="/parent/results" className="w-full py-3.5 px-4 rounded-xl flex items-center gap-3 font-heading font-bold text-sm bg-[#13102A] text-[#C4B5FD] hover:bg-white/5 border border-white/5 transition-all">
-            <Award className="w-5 h-5" />
-            <span>Child Report Card</span>
-          </a>
-        </nav>
+        <div className="space-y-4 mt-8">
+          {isLoading ? (
+            <div className="text-center text-xs text-[#C4B5FD]/50 py-10">Syncing database billing ledgers...</div>
+          ) : (
+            structures.map((st) => {
+              const paidLog = getPaidStatus(st.id);
+              const concession = getAppliedConcession(st.id);
+              const waiver = concession ? Number(concession.amount) : 0;
+              const net = Math.max(0, Number(st.amount) - waiver);
 
-        {/* Content Portal */}
-        <div className="md:col-span-9 flex flex-col gap-6">
-          <div className="glass-panel rounded-3xl p-8 border border-white/5">
-            <h2 className="font-heading font-extrabold text-2xl text-white">Dues & Ledger Ledger</h2>
-            <p className="text-xs text-[#C4B5FD] mt-1 font-light">Monitor outstanding billing statements, concessions, and settle balances online.</p>
-
-            <div className="space-y-4 mt-8">
-              {isLoading ? (
-                <div className="text-center text-xs text-[#C4B5FD]/50 py-10">Syncing database billing ledgers...</div>
-              ) : (
-                structures.map((st) => {
-                  const paidLog = getPaidStatus(st.id);
-                  const concession = getAppliedConcession(st.id);
-                  const waiver = concession ? Number(concession.amount) : 0;
-                  const net = Math.max(0, Number(st.amount) - waiver);
-
-                  return (
-                    <div key={st.id} className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-wrap justify-between items-center gap-4 hover:border-[#6C2BD9]/30 transition-all">
-                      <div>
-                        <h4 className="font-bold text-white text-base">{st.name}</h4>
-                        <div className="flex items-center gap-3 text-[10px] text-[#C4B5FD]/70 mt-1 font-light">
-                          <span>Due: {st.due_date}</span>
-                          {concession && <span className="text-emerald-400 font-semibold">Scholarship applied: -₹{waiver}</span>}
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-4">
-                        <strong className="font-heading font-extrabold text-base text-white">₹{net.toLocaleString()}</strong>
-                        
-                        {paidLog ? (
-                          <span className="px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1">
-                            <CheckCircle2 className="w-4 h-4" /> Paid
-                          </span>
-                        ) : (
-                          <button 
-                            onClick={() => handlePay({ ...st, amount: net })}
-                            disabled={isPaying === st.id}
-                            className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#6C2BD9] to-[#8B5CF6] hover:brightness-110 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg transition-all"
-                          >
-                            <IndianRupee className="w-4 h-4" /> {isPaying === st.id ? "Authorizing..." : "Settle Balance"}
-                          </button>
-                        )}
-                      </div>
+              return (
+                <div key={st.id} className="p-5 rounded-2xl bg-white/5 border border-white/5 flex flex-wrap justify-between items-center gap-4 hover:border-[#6C2BD9]/30 transition-all">
+                  <div>
+                    <h4 className="font-bold text-white text-base">{st.name}</h4>
+                    <div className="flex items-center gap-3 text-[10px] text-[#C4B5FD]/70 mt-1 font-light">
+                      <span>Due: {st.due_date}</span>
+                      {concession && <span className="text-emerald-400 font-semibold">Scholarship applied: -₹{waiver}</span>}
                     </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-        </div>
+                  </div>
 
+                  <div className="flex items-center gap-4">
+                    <strong className="font-heading font-extrabold text-base text-white">₹{net.toLocaleString()}</strong>
+                    
+                    {paidLog ? (
+                      <span className="px-3.5 py-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs font-semibold uppercase tracking-wider flex items-center gap-1">
+                        <CheckCircle2 className="w-4 h-4" /> Paid
+                      </span>
+                    ) : (
+                      <button 
+                        onClick={() => handlePay({ ...st, amount: net })}
+                        disabled={isPaying === st.id}
+                        className="px-4 py-2 rounded-xl bg-gradient-to-r from-[#6C2BD9] to-[#8B5CF6] hover:brightness-110 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-1.5 shadow-lg transition-all"
+                      >
+                        <IndianRupee className="w-4 h-4" /> {isPaying === st.id ? "Authorizing..." : "Settle Balance"}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
       </div>
     </div>
   );

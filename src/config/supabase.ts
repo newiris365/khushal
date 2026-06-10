@@ -17,3 +17,31 @@ export const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
     persistSession: false
   }
 });
+
+export let isSupabaseOffline = false;
+
+// Simple connectivity check
+async function checkConnectivity() {
+  if (!supabaseUrl || !supabaseServiceKey) {
+    isSupabaseOffline = true;
+    return;
+  }
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3500);
+    const res = await fetch(`${supabaseUrl}/rest/v1/`, {
+      method: 'GET',
+      headers: { apikey: supabaseServiceKey },
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok && res.status !== 404 && res.status !== 401) {
+      isSupabaseOffline = true;
+    }
+  } catch (err) {
+    isSupabaseOffline = true;
+    console.warn(`[SUPABASE CONNECTIVITY] Supabase is offline or unreachable (${supabaseUrl}). Running in simulated offline sandbox mode.`);
+  }
+}
+checkConnectivity();
+

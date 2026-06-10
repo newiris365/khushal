@@ -396,7 +396,8 @@ export async function getStudentAttendance(req: Request, res: Response) {
       success: true,
       stats: { overall: percentage, total, present, daysNeeded },
       breakdown,
-      heatmap
+      heatmap,
+      logs
     });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Internal fetch failure.' });
