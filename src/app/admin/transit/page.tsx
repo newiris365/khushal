@@ -162,6 +162,18 @@ export default function AdminFleetDashboard() {
             <Link href="/admin/transit/schedule" className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-xs font-bold text-[#C4B5FD] transition-all">
               Schedules
             </Link>
+            <Link href="/admin/transit/optimizer" className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-xs font-bold text-[#C4B5FD] transition-all">
+              AI Route Optimizer
+            </Link>
+            <Link href="/admin/transit/sos" className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-xs font-bold text-[#C4B5FD] transition-all">
+              Parent SOS Alerts
+            </Link>
+            <Link href="/admin/transit/parking" className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-xs font-bold text-[#C4B5FD] transition-all">
+              Parking Management
+            </Link>
+            <Link href="/admin/transit/carbon" className="px-4 py-2.5 rounded-xl bg-white/5 border border-white/5 hover:bg-white/10 hover:border-white/10 text-xs font-bold text-[#C4B5FD] transition-all">
+              Carbon Emissions
+            </Link>
             <Link href="/admin/transit/analytics" className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#6C2BD9] to-[#8B5CF6] hover:opacity-95 text-xs font-bold text-white transition-all">
               On-Time Performance
             </Link>

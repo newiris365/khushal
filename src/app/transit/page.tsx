@@ -9,6 +9,7 @@ export default function StudentTransitPage() {
   const [subscription, setSubscription] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [activeTrip, setActiveTrip] = useState<any>(null);
+  const [prediction, setPrediction] = useState<any>(null);
 
   useEffect(() => {
     loadTransitDetails();
@@ -24,6 +25,13 @@ export default function StudentTransitPage() {
       const subRes = await apiGet(`/transit/subscriptions/student/${studentId}`);
       if (subRes.success && subRes.has_subscription) {
         setSubscription(subRes.subscription);
+
+        // Fetch ML predictive arrival
+        const routeId = subRes.subscription.route_id;
+        const predRes = await apiGet(`/transit/routes/${routeId}/predictive-arrival`);
+        if (predRes.success) {
+          setPrediction(predRes);
+        }
 
         // 2. Fetch active trip if bus exists
         if (subRes.subscription?.bus_routes?.buses?.length > 0) {
@@ -73,6 +81,14 @@ export default function StudentTransitPage() {
         passenger_count: 24,
         delay_minutes: 5,
         notes: 'Slight traffic near Sardarpura bridge.'
+      });
+      setPrediction({
+        predicted_delay_minutes: 8,
+        confidence_score: 91,
+        delay_factors: [
+          { factor: 'Historical baseline avg', weight: 4 },
+          { factor: 'Weather slowdown (Rain/Wet roads)', weight: 4 }
+        ]
       });
     } finally {
       setLoading(false);
@@ -174,6 +190,31 @@ export default function StudentTransitPage() {
                       <span className="font-bold text-white">{subscription.stop_name}</span>
                     </div>
                   </div>
+
+                  {prediction && (
+                    <div className="border-t border-white/5 pt-4 mt-4 text-xs space-y-2">
+                      <div className="flex justify-between items-center">
+                        <span className="text-emerald-400 font-bold flex items-center gap-1">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                          ML Predictive ETA
+                        </span>
+                        <span className="text-[10px] text-[#C4B5FD]/50 font-semibold">Confidence: {prediction.confidence_score}%</span>
+                      </div>
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-white font-extrabold text-sm">Predicted Delay: {prediction.predicted_delay_minutes} mins</span>
+                        <span className="text-[9px] text-[#C4B5FD]/60">Weather & Exam traffic factored</span>
+                      </div>
+                      {prediction.delay_factors && (
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {prediction.delay_factors.map((df: any, idx: number) => (
+                            <span key={idx} className="px-2 py-0.5 rounded bg-white/5 text-[8px] text-[#C4B5FD]/70 border border-white/10">
+                              {df.factor} (+{df.weight}m)
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {activeTrip.notes && (
                     <p className="text-[10px] text-amber-300 bg-amber-400/5 border border-amber-400/10 p-2.5 rounded-lg mt-4 flex items-center gap-1.5">

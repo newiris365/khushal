@@ -167,6 +167,31 @@ export default function GlobalSearchPage() {
               </button>
             ))}
           </div>
+
+          {/* AI Sub-modules Navigation Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-4 border-t border-white/5">
+            <Link href="/ai/voice" className="p-4 bg-[#13102A]/60 border border-[#8B5CF6]/20 hover:border-[#8B5CF6]/50 rounded-2xl flex items-center justify-between group transition-all shadow-md">
+              <div>
+                <h4 className="font-extrabold text-sm text-white group-hover:text-[#A78BFA] transition-colors">🎙️ Voice Assistant</h4>
+                <p className="text-[11px] text-[#C4B5FD]/70 mt-1">Speak with IRIS in Hindi & English</p>
+              </div>
+              <ArrowUpRight className="w-4 h-4 text-[#C4B5FD] opacity-60 group-hover:opacity-100 transition-all" />
+            </Link>
+            <Link href="/ai/nudges" className="p-4 bg-[#13102A]/60 border border-[#8B5CF6]/20 hover:border-[#8B5CF6]/50 rounded-2xl flex items-center justify-between group transition-all shadow-md">
+              <div>
+                <h4 className="font-extrabold text-sm text-white group-hover:text-[#A78BFA] transition-colors">🔔 Smart Nudges</h4>
+                <p className="text-[11px] text-[#C4B5FD]/70 mt-1">View inbox & quiet hours setup</p>
+              </div>
+              <ArrowUpRight className="w-4 h-4 text-[#C4B5FD] opacity-60 group-hover:opacity-100 transition-all" />
+            </Link>
+            <Link href="/ai/study-plan" className="p-4 bg-[#13102A]/60 border border-[#8B5CF6]/20 hover:border-[#8B5CF6]/50 rounded-2xl flex items-center justify-between group transition-all shadow-md">
+              <div>
+                <h4 className="font-extrabold text-sm text-white group-hover:text-[#A78BFA] transition-colors">📖 Study Planner</h4>
+                <p className="text-[11px] text-[#C4B5FD]/70 mt-1">Personalized exam schedules</p>
+              </div>
+              <ArrowUpRight className="w-4 h-4 text-[#C4B5FD] opacity-60 group-hover:opacity-100 transition-all" />
+            </Link>
+          </div>
         </div>
       </div>
 

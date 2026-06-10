@@ -1024,3 +1024,756 @@ export async function getConciergeStats(req: Request, res: Response) {
     return res.status(500).json({ success: false, error: err.message });
   }
 }
+
+// ============================================================
+// MODULE 10 ADDITIONS: Enhanced AI Concierge Intelligence
+// ============================================================
+
+// ========== 11. VOICE INTERFACE ==========
+
+export const voiceTranscribeSchema = z.object({
+  transcript: z.string().min(1, 'Transcript text is required'),
+  language: z.enum(['en', 'hi']).default('en'),
+  source: z.enum(['web_speech', 'expo_av', 'whatsapp_whisper']).default('web_speech'),
+  duration_seconds: z.number().optional(),
+  confidence: z.number().optional(),
+  audio_url: z.string().optional(),
+  session_id: z.string().optional()
+});
+
+export async function voiceTranscribe(req: Request, res: Response) {
+  try {
+    const parse = voiceTranscribeSchema.safeParse(req.body);
+    if (!parse.success) return res.status(400).json({ success: false, error: parse.error.errors[0].message });
+    const { transcript, language, source, duration_seconds, confidence, audio_url, session_id } = parse.data;
+
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const userId = req.user?.id || 'u0000000-0000-0000-0000-000000000001';
+
+    // Save voice transcript log
+    const { data: txLog } = await supabaseAdmin
+      .from('voice_transcripts')
+      .insert({
+        user_id: userId,
+        institution_id: institutionId,
+        transcript,
+        language,
+        source,
+        duration_seconds: duration_seconds || 0,
+        confidence: confidence || 0.0,
+        audio_url: audio_url || null
+      })
+      .select('id')
+      .single();
+
+    // Process the transcript as a chat query through Claude
+    const ctx = await fetchUserContext(userId, institutionId);
+    ctx.language = language;
+
+    const sessionId = session_id || `voice_${Date.now()}`;
+
+    // Check FAQ match first
+    let matchedAnswer: string | null = null;
+    try {
+      const queryEmbedding = await getEmbeddings(transcript);
+      const { data: faqMatch } = await supabaseAdmin.rpc('match_faq', {
+        query_embedding: queryEmbedding,
+        match_threshold: 0.85,
+        match_count: 1,
+        inst_id: institutionId
+      });
+
+      if (faqMatch && faqMatch.length > 0) {
+        matchedAnswer = faqMatch[0].answer;
+        await supabaseAdmin
+          .from('faq_knowledge_base')
+          .update({ usage_count: faqMatch[0].usage_count + 1 })
+          .eq('id', faqMatch[0].id);
+      }
+    } catch {}
+
+    // Get Claude response if no FAQ match
+    let aiResponse = matchedAnswer || await askClaude(transcript, ctx, []);
+
+    // Update conversation log
+    if (txLog?.id) {
+      await supabaseAdmin
+        .from('voice_transcripts')
+        .update({ conversation_id: null })
+        .eq('id', txLog.id);
+    }
+
+    // Save to query logs
+    await supabaseAdmin
+      .from('ai_query_logs')
+      .insert({
+        user_id: userId,
+        institution_id: institutionId,
+        channel: 'app',
+        query: `[VOICE:${source}] ${transcript}`,
+        intent: detectIntent(transcript)[0],
+        response: aiResponse,
+        module: 'voice'
+      });
+
+    return res.status(200).json({
+      success: true,
+      transcript_id: txLog?.id,
+      session_id: sessionId,
+      original_text: transcript,
+      response: aiResponse,
+      language,
+      source,
+      // TTS instructions for client
+      tts: {
+        text: aiResponse,
+        lang: language === 'hi' ? 'hi-IN' : 'en-US',
+        rate: 1.0,
+        pitch: 1.0
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function voiceSynthesize(req: Request, res: Response) {
+  try {
+    const { text, language } = req.body;
+
+    if (!text) return res.status(400).json({ success: false, error: 'Text is required for synthesis.' });
+
+    // Server-side TTS config for client playback
+    // In production, this could call Google Cloud TTS or AWS Polly
+    const ttsConfig = {
+      text,
+      lang: language === 'hi' ? 'hi-IN' : 'en-US',
+      voice: language === 'hi' ? 'Google हिन्दी' : 'Google US English',
+      rate: 1.0,
+      pitch: 1.0,
+      volume: 1.0,
+      // SSML markup for natural speech
+      ssml: `<speak><prosody rate="medium" pitch="medium">${text}</prosody></speak>`
+    };
+
+    return res.status(200).json({ success: true, tts: ttsConfig });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getVoiceHistory(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id || 'u0000000-0000-0000-0000-000000000001';
+    const { data, error } = await supabaseAdmin
+      .from('voice_transcripts')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+
+    if (error) throw error;
+    return res.status(200).json({ success: true, transcripts: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// ========== 12. PROACTIVE AI NUDGES ==========
+
+export async function getNudges(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id || 'u0000000-0000-0000-0000-000000000001';
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+
+    // Get student id from user
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const studentId = student?.id || 'b0000000-0000-0000-0000-000000000001';
+
+    const { data, error } = await supabaseAdmin
+      .from('proactive_nudges')
+      .select('*')
+      .eq('student_id', studentId)
+      .order('sent_at', { ascending: false })
+      .limit(30);
+
+    if (error) throw error;
+
+    // Stats
+    const total = data?.length || 0;
+    const unread = data?.filter((n: any) => !n.was_read).length || 0;
+    const actioned = data?.filter((n: any) => n.was_actioned).length || 0;
+
+    return res.status(200).json({
+      success: true,
+      nudges: data || [],
+      stats: { total, unread, actioned, action_rate: total > 0 ? Math.round((actioned / total) * 100) : 0 }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function markNudgeRead(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabaseAdmin
+      .from('proactive_nudges')
+      .update({ was_read: true })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.status(200).json({ success: true, nudge: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function markNudgeActioned(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabaseAdmin
+      .from('proactive_nudges')
+      .update({ was_actioned: true, actioned_at: new Date().toISOString() })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.status(200).json({ success: true, nudge: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function sendNudgeBatch(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+
+    // Fetch all students with nudge preferences enabled
+    const { data: prefs } = await supabaseAdmin
+      .from('nudge_preferences')
+      .select('*, students(id, roll_number, user_id, users(name))')
+      .eq('institution_id', institutionId)
+      .eq('enabled', true);
+
+    let sentCount = 0;
+    const nudgeResults: any[] = [];
+
+    for (const pref of (prefs || [])) {
+      const studentId = pref.student_id;
+      const studentName = (pref.students as any)?.users?.name || 'Student';
+
+      // Check quiet hours
+      const now = new Date();
+      const currentHour = now.getHours();
+      const quietStart = parseInt((pref.quiet_hours_start || '22:00').split(':')[0]);
+      const quietEnd = parseInt((pref.quiet_hours_end || '07:00').split(':')[0]);
+      
+      const inQuietHours = quietStart > quietEnd 
+        ? (currentHour >= quietStart || currentHour < quietEnd)
+        : (currentHour >= quietStart && currentHour < quietEnd);
+
+      if (inQuietHours) continue;
+
+      // Generate contextual nudges using Claude
+      const ctx = await fetchUserContext(pref.students?.user_id || '', institutionId);
+      
+      const nudgePrompt = `Generate a single proactive nudge notification for student ${studentName}. Context: attendance ${ctx.attendance}%, pending fees ₹${ctx.pending_fees}, today's classes: ${ctx.timetable.join(', ')}. Pick the most relevant nudge type from: weekly_prep, attendance_warning, fee_reminder, exam_countdown, motivational. Return JSON: {"type":"...","title":"...","message":"...","priority":"normal|high|urgent"}`;
+
+      let nudgeData: any;
+      try {
+        const claudeResponse = await askClaude(nudgePrompt, ctx, []);
+        nudgeData = JSON.parse(claudeResponse);
+      } catch {
+        // Fallback generated nudge
+        nudgeData = {
+          type: ctx.attendance < 75 ? 'attendance_warning' : 'weekly_prep',
+          title: ctx.attendance < 75 ? '⚠️ Attendance Alert' : '📚 Week Prep',
+          message: ctx.attendance < 75 
+            ? `Your attendance is ${ctx.attendance}%. Attend your next classes to stay above the 75% threshold.`
+            : `Good morning ${studentName}! You have ${ctx.timetable.length} classes today. Stay consistent!`,
+          priority: ctx.attendance < 75 ? 'high' : 'normal'
+        };
+      }
+
+      // Check if nudge type is in student's enabled types
+      if (pref.enabled_types && !pref.enabled_types.includes(nudgeData.type)) continue;
+
+      // Insert nudge
+      await supabaseAdmin
+        .from('proactive_nudges')
+        .insert({
+          student_id: studentId,
+          institution_id: institutionId,
+          nudge_type: nudgeData.type || 'weekly_prep',
+          title: nudgeData.title,
+          message: nudgeData.message,
+          priority: nudgeData.priority || 'normal',
+          channel: pref.preferred_channels?.[0] || 'push'
+        });
+
+      sentCount++;
+      nudgeResults.push({ student: studentName, type: nudgeData.type, title: nudgeData.title });
+    }
+
+    return res.status(200).json({
+      success: true,
+      sent_count: sentCount,
+      results: nudgeResults,
+      message: `Dispatched ${sentCount} proactive nudges to opted-in students.`
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getNudgePreferences(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id || 'u0000000-0000-0000-0000-000000000001';
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const studentId = student?.id || 'b0000000-0000-0000-0000-000000000001';
+
+    const { data, error } = await supabaseAdmin
+      .from('nudge_preferences')
+      .select('*')
+      .eq('student_id', studentId)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    // Return default preferences if none exist
+    const preferences = data || {
+      enabled: true,
+      enabled_types: ['weekly_prep', 'assignment_reminder', 'attendance_warning', 'fee_reminder', 'exam_countdown'],
+      preferred_channels: ['push', 'in_app'],
+      quiet_hours_start: '22:00',
+      quiet_hours_end: '07:00',
+      max_nudges_per_day: 5,
+      language_preference: 'en'
+    };
+
+    return res.status(200).json({ success: true, preferences });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function updateNudgePreferences(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id || 'u0000000-0000-0000-0000-000000000001';
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const studentId = student?.id || 'b0000000-0000-0000-0000-000000000001';
+
+    const updates = {
+      enabled: req.body.enabled,
+      enabled_types: req.body.enabled_types,
+      preferred_channels: req.body.preferred_channels,
+      quiet_hours_start: req.body.quiet_hours_start,
+      quiet_hours_end: req.body.quiet_hours_end,
+      max_nudges_per_day: req.body.max_nudges_per_day,
+      language_preference: req.body.language_preference,
+      updated_at: new Date().toISOString()
+    };
+
+    // Upsert
+    const { data: existing } = await supabaseAdmin
+      .from('nudge_preferences')
+      .select('id')
+      .eq('student_id', studentId)
+      .maybeSingle();
+
+    let result;
+    if (existing) {
+      const { data, error } = await supabaseAdmin
+        .from('nudge_preferences')
+        .update(updates)
+        .eq('student_id', studentId)
+        .select()
+        .single();
+      if (error) throw error;
+      result = data;
+    } else {
+      const { data, error } = await supabaseAdmin
+        .from('nudge_preferences')
+        .insert({ student_id: studentId, institution_id: institutionId, ...updates })
+        .select()
+        .single();
+      if (error) throw error;
+      result = data;
+    }
+
+    return res.status(200).json({ success: true, preferences: result });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// ========== 13. AI STUDY PLANNER ==========
+
+export async function generateStudyPlan(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id || 'u0000000-0000-0000-0000-000000000001';
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const { exam_schedule, study_hours_per_day, weak_areas } = req.body;
+
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('*, departments(name)')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const studentId = student?.id || 'b0000000-0000-0000-0000-000000000001';
+    const studentName = student?.users?.name || 'Student';
+    const department = (student?.departments as any)?.name || 'General';
+
+    // Fetch existing academic context
+    const ctx = await fetchUserContext(userId, institutionId);
+
+    // Build Claude prompt for study plan generation
+    const examStr = exam_schedule ? JSON.stringify(exam_schedule) : '[]';
+    const weakStr = weak_areas ? JSON.stringify(weak_areas) : '[]';
+
+    const planPrompt = `You are IRIS Study Planner AI. Generate a personalized daily study plan for ${studentName} (${department}).
+
+Exam Schedule: ${examStr}
+Weak Areas: ${weakStr}
+Available study hours per day: ${study_hours_per_day || 4}
+Current timetable (avoid these times): ${ctx.timetable.join(', ')}
+Current attendance: ${ctx.attendance}%
+
+Generate a JSON study plan with this structure:
+{
+  "daily_plan": [
+    {
+      "day": "Monday",
+      "blocks": [
+        {"time": "06:00-08:00", "subject": "...", "topic": "...", "type": "focus|review|practice|light"}
+      ]
+    }
+  ],
+  "subjects": ["subject1", "subject2"],
+  "reasoning": "Brief explanation of prioritization logic",
+  "plan_start_date": "YYYY-MM-DD",
+  "plan_end_date": "YYYY-MM-DD"
+}
+
+Rules:
+1. Prioritize subjects with nearest exam dates
+2. Allocate more time to weak areas
+3. Mix focus sessions (morning) with review/practice (afternoon)
+4. Include breaks and light subjects in the evening
+5. Don't schedule during class hours`;
+
+    let studyPlanData: any;
+    try {
+      const claudeResponse = await askClaude(planPrompt, ctx, []);
+      // Try to parse JSON from Claude response
+      const jsonMatch = claudeResponse.match(/\{[\s\S]*\}/);
+      studyPlanData = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+    } catch {
+      studyPlanData = null;
+    }
+
+    // Fallback study plan if Claude doesn't return valid JSON
+    if (!studyPlanData) {
+      const subjects = exam_schedule?.map((e: any) => e.subject) || ['Mathematics', 'Physics', 'Programming'];
+      studyPlanData = {
+        daily_plan: [
+          { day: 'Monday', blocks: [
+            { time: '06:00-08:00', subject: subjects[0] || 'Mathematics', topic: 'Core concepts review', type: 'focus' },
+            { time: '16:00-17:30', subject: subjects[1] || 'Physics', topic: 'Problem solving', type: 'practice' }
+          ]},
+          { day: 'Tuesday', blocks: [
+            { time: '06:00-08:00', subject: subjects[1] || 'Physics', topic: 'Theory revision', type: 'focus' },
+            { time: '16:00-17:30', subject: subjects[2] || 'Programming', topic: 'Coding practice', type: 'practice' }
+          ]},
+          { day: 'Wednesday', blocks: [
+            { time: '06:00-08:00', subject: subjects[2] || 'Programming', topic: 'Data structures', type: 'focus' },
+            { time: '16:00-18:00', subject: subjects[0] || 'Mathematics', topic: 'Problem sets', type: 'practice' }
+          ]}
+        ],
+        subjects,
+        reasoning: 'Auto-generated plan based on exam schedule proximity and weak area focus allocation.',
+        plan_start_date: new Date().toISOString().split('T')[0],
+        plan_end_date: new Date(Date.now() + 21 * 86400000).toISOString().split('T')[0]
+      };
+    }
+
+    // Save study plan
+    const { data: plan, error } = await supabaseAdmin
+      .from('study_plans')
+      .insert({
+        student_id: studentId,
+        institution_id: institutionId,
+        exam_schedule: exam_schedule || [],
+        daily_plan: studyPlanData.daily_plan || [],
+        subjects: studyPlanData.subjects || [],
+        weak_areas: weak_areas || [],
+        study_hours_per_day: study_hours_per_day || 4,
+        plan_start_date: studyPlanData.plan_start_date || new Date().toISOString().split('T')[0],
+        plan_end_date: studyPlanData.plan_end_date || new Date(Date.now() + 21 * 86400000).toISOString().split('T')[0],
+        status: 'active',
+        claude_reasoning: studyPlanData.reasoning || ''
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    return res.status(201).json({
+      success: true,
+      study_plan: plan,
+      reasoning: studyPlanData.reasoning
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getStudyPlan(req: Request, res: Response) {
+  try {
+    const { studentId } = req.params;
+    const targetId = studentId || 'b0000000-0000-0000-0000-000000000001';
+
+    const { data, error } = await supabaseAdmin
+      .from('study_plans')
+      .select('*')
+      .eq('student_id', targetId)
+      .order('generated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      return res.status(200).json({
+        success: true,
+        study_plan: null,
+        message: 'No study plan found. Generate one first.'
+      });
+    }
+
+    return res.status(200).json({ success: true, study_plan: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function updateStudyPlanProgress(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { completion_percentage, status } = req.body;
+
+    const updates: any = { last_adjusted: new Date().toISOString() };
+    if (completion_percentage !== undefined) updates.completion_percentage = completion_percentage;
+    if (status) updates.status = status;
+
+    const { data, error } = await supabaseAdmin
+      .from('study_plans')
+      .update(updates)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.status(200).json({ success: true, study_plan: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// ========== 14. SENTIMENT ANALYSIS ==========
+
+export async function analyzeSentiment(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+
+    // Fetch today's AI query logs for sentiment analysis
+    const today = new Date().toISOString().split('T')[0];
+    const { data: logs } = await supabaseAdmin
+      .from('ai_query_logs')
+      .select('query, intent, response, created_at')
+      .eq('institution_id', institutionId)
+      .gte('created_at', `${today}T00:00:00`)
+      .lte('created_at', `${today}T23:59:59`);
+
+    const messages = logs || [];
+
+    // Sentiment classification using keyword analysis
+    const negativeKeywords = ['complaint', 'problem', 'broken', 'bad', 'worst', 'terrible', 'angry', 'frustrated', 'slow', 'dirty', 'cold', 'noise', 'worry', 'anxiety', 'unfair', 'kharab', 'problem', 'dikkat'];
+    const positiveKeywords = ['great', 'excellent', 'good', 'awesome', 'love', 'best', 'helpful', 'thank', 'amazing', 'perfect', 'accha', 'badiya', 'shandar'];
+
+    let positive = 0, neutral = 0, negative = 0;
+    const flaggedKw: string[] = [];
+    const complaints: Record<string, number> = {};
+    const flaggedMsgs: any[] = [];
+
+    for (const msg of messages) {
+      const lower = msg.query.toLowerCase();
+      const isNeg = negativeKeywords.some(kw => lower.includes(kw));
+      const isPos = positiveKeywords.some(kw => lower.includes(kw));
+
+      if (isNeg) {
+        negative++;
+        // Extract flagged keywords
+        negativeKeywords.forEach(kw => {
+          if (lower.includes(kw) && !flaggedKw.includes(kw)) flaggedKw.push(kw);
+        });
+        // Categorize complaint
+        const intent = msg.intent || 'general';
+        complaints[intent] = (complaints[intent] || 0) + 1;
+        flaggedMsgs.push({ query: msg.query, time: msg.created_at, intent });
+      } else if (isPos) {
+        positive++;
+      } else {
+        neutral++;
+      }
+    }
+
+    const total = messages.length || 1;
+    const avgSentiment = ((positive * 1.0) + (neutral * 0.5) + (negative * 0.0)) / total;
+
+    // Upsert sentiment log for today
+    const { data: existing } = await supabaseAdmin
+      .from('sentiment_logs')
+      .select('id')
+      .eq('institution_id', institutionId)
+      .eq('date', today)
+      .is('department', null)
+      .maybeSingle();
+
+    const sentimentRecord = {
+      institution_id: institutionId,
+      date: today,
+      department: null as string | null,
+      department_id: null as string | null,
+      avg_sentiment: Math.round(avgSentiment * 100) / 100,
+      positive_count: positive,
+      neutral_count: neutral,
+      negative_count: negative,
+      message_count: messages.length,
+      flagged_keywords: flaggedKw,
+      flagged_messages: flaggedMsgs.slice(0, 20),
+      complaint_categories: complaints,
+      auto_routed_count: flaggedMsgs.length
+    };
+
+    if (existing) {
+      await supabaseAdmin
+        .from('sentiment_logs')
+        .update(sentimentRecord)
+        .eq('id', existing.id);
+    } else {
+      await supabaseAdmin
+        .from('sentiment_logs')
+        .insert(sentimentRecord);
+    }
+
+    return res.status(200).json({
+      success: true,
+      analysis: {
+        date: today,
+        total_messages: messages.length,
+        sentiment_score: Math.round(avgSentiment * 100) / 100,
+        positive_count: positive,
+        neutral_count: neutral,
+        negative_count: negative,
+        flagged_keywords: flaggedKw,
+        complaint_categories: complaints,
+        flagged_messages: flaggedMsgs.slice(0, 10),
+        mood: avgSentiment >= 0.7 ? '😊 Positive' : avgSentiment >= 0.4 ? '😐 Neutral' : '😟 Concerning'
+      }
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getSentimentTrends(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const days = parseInt(req.query.days as string) || 7;
+
+    const startDate = new Date(Date.now() - days * 86400000).toISOString().split('T')[0];
+
+    const { data, error } = await supabaseAdmin
+      .from('sentiment_logs')
+      .select('*')
+      .eq('institution_id', institutionId)
+      .gte('date', startDate)
+      .order('date', { ascending: true });
+
+    if (error) throw error;
+
+    // Aggregate by department
+    const deptMap: Record<string, any[]> = {};
+    const dailyTotals: any[] = [];
+
+    for (const log of (data || [])) {
+      const dept = log.department || 'Overall';
+      if (!deptMap[dept]) deptMap[dept] = [];
+      deptMap[dept].push(log);
+
+      // Daily aggregate
+      const existingDay = dailyTotals.find(d => d.date === log.date);
+      if (existingDay) {
+        existingDay.message_count += log.message_count;
+        existingDay.positive += log.positive_count;
+        existingDay.negative += log.negative_count;
+        existingDay.neutral += log.neutral_count;
+      } else {
+        dailyTotals.push({
+          date: log.date,
+          message_count: log.message_count,
+          positive: log.positive_count,
+          negative: log.negative_count,
+          neutral: log.neutral_count,
+          avg_sentiment: log.avg_sentiment
+        });
+      }
+    }
+
+    // Department mood rankings
+    const deptRankings = Object.entries(deptMap).map(([dept, logs]) => {
+      const avgScore = logs.reduce((s, l) => s + l.avg_sentiment, 0) / logs.length;
+      const totalComplaints = logs.reduce((s, l) => s + l.negative_count, 0);
+      return {
+        department: dept,
+        avg_sentiment: Math.round(avgScore * 100) / 100,
+        total_messages: logs.reduce((s, l) => s + l.message_count, 0),
+        total_complaints: totalComplaints,
+        mood: avgScore >= 0.7 ? '😊 Positive' : avgScore >= 0.4 ? '😐 Mixed' : '😟 Needs Attention',
+        top_keywords: [...new Set(logs.flatMap(l => l.flagged_keywords || []))].slice(0, 5)
+      };
+    }).sort((a, b) => b.avg_sentiment - a.avg_sentiment);
+
+    return res.status(200).json({
+      success: true,
+      period: `${days} days`,
+      daily_trends: dailyTotals,
+      department_rankings: deptRankings,
+      total_records: data?.length || 0
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}

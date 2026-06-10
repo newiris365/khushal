@@ -245,6 +245,21 @@ export default function DirectorDashboard() {
           <Link href="/director/students" className="p-3 bg-white/5 hover:bg-white/10 rounded-2xl text-center border border-white/5 transition-all text-xs font-bold">
             Cross Student Search
           </Link>
+          <Link href="/director/goals" className="p-3 bg-[#8B5CF6]/20 hover:bg-[#8B5CF6]/30 border border-[#8B5CF6]/40 text-[#C4B5FD] rounded-2xl text-center transition-all text-xs font-bold">
+            Strategic Goals Target
+          </Link>
+          <Link href="/director/board-reports" className="p-3 bg-[#8B5CF6]/20 hover:bg-[#8B5CF6]/30 border border-[#8B5CF6]/40 text-[#C4B5FD] rounded-2xl text-center transition-all text-xs font-bold">
+            Board Reports PPTX
+          </Link>
+          <Link href="/director/financial-pl" className="p-3 bg-[#8B5CF6]/20 hover:bg-[#8B5CF6]/30 border border-[#8B5CF6]/40 text-[#C4B5FD] rounded-2xl text-center transition-all text-xs font-bold">
+            Financial P&L Sheet
+          </Link>
+          <Link href="/director/benchmarks" className="p-3 bg-[#8B5CF6]/20 hover:bg-[#8B5CF6]/30 border border-[#8B5CF6]/40 text-[#C4B5FD] rounded-2xl text-center transition-all text-xs font-bold">
+            Competitor Benchmarks
+          </Link>
+          <Link href="/director/journey" className="p-3 bg-[#8B5CF6]/20 hover:bg-[#8B5CF6]/30 border border-[#8B5CF6]/40 text-[#C4B5FD] rounded-2xl text-center transition-all text-xs font-bold col-span-2 md:col-span-1">
+            Student Journey Analytics
+          </Link>
         </div>
 
         {/* 3. ROW SECTION: RECENT ACTIVITY & DIRECTORS CONTROL PANEL */}

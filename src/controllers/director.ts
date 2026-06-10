@@ -4,6 +4,12 @@ import { supabaseAdmin } from '../config/supabase';
 import { generateDirectorAIInsights } from '../services/aiInsights';
 import { generatePuppeteerPDF, generatePDFKitFallback, uploadReportToSupabase } from '../services/pdfGenerator';
 import logger from '../config/logger';
+import { exec } from 'child_process';
+import { promisify } from 'util';
+import fs from 'fs';
+import path from 'path';
+
+const execPromise = promisify(exec);
 
 // ========== ZOD VALIDATION SCHEMAS ==========
 export const thresholdUpdateSchema = z.object({
@@ -810,6 +816,486 @@ export async function getStudentFullProfile(req: Request, res: Response) {
         active_subscriptions: { transit: 'Active', gym: 'None', library: '2 Books checked out' }
       }
     });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// ========== MODULE 9 ADDITIONS ==========
+
+// 1. Strategic Goal Tracking
+export async function getGoals(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const { data: goals, error } = await supabaseAdmin
+      .from('strategic_goals')
+      .select('*')
+      .eq('institution_id', institutionId)
+      .order('deadline', { ascending: true });
+
+    if (error) throw error;
+
+    // Calculate days passed in current year to project trajectory
+    const now = new Date();
+    const start = new Date(now.getFullYear(), 0, 1);
+    const diff = now.getTime() - start.getTime();
+    const oneDay = 1000 * 60 * 60 * 24;
+    const dayOfYear = Math.max(1, Math.floor(diff / oneDay) + 1);
+
+    const goalsWithProjections = (goals || []).map((goal: any) => {
+      const target = parseFloat(goal.target_value);
+      const current = parseFloat(goal.current_value);
+      const projected = Math.round(current * (365 / dayOfYear) * 100) / 100;
+      
+      let riskAlert = '';
+      if (projected < target && goal.status === 'at_risk') {
+        const shortfall = Math.round(target - projected);
+        riskAlert = `At current rate, ${goal.metric_name} target will be missed by ${goal.unit}${shortfall.toLocaleString('en-IN')}`;
+      }
+
+      return {
+        ...goal,
+        projected_value: projected,
+        risk_alert: riskAlert
+      };
+    });
+
+    return res.status(200).json({ success: true, goals: goalsWithProjections });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function createOrUpdateGoal(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const { metric_name, target_value, current_value, deadline, unit, status } = req.body;
+    
+    const { data, error } = await supabaseAdmin
+      .from('strategic_goals')
+      .upsert({
+        institution_id: institutionId,
+        metric_name,
+        target_value,
+        current_value,
+        deadline,
+        unit,
+        status: status || 'on_track'
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.status(200).json({ success: true, goal: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getGoalsHistory(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const { data: goals, error } = await supabaseAdmin
+      .from('strategic_goals')
+      .select('*')
+      .eq('institution_id', institutionId);
+
+    if (error) throw error;
+
+    // Group by deadline year for YoY comparison
+    const history: Record<string, any[]> = {};
+    (goals || []).forEach((goal: any) => {
+      const year = new Date(goal.deadline).getFullYear().toString();
+      if (!history[year]) history[year] = [];
+      history[year].push(goal);
+    });
+
+    return res.status(200).json({ success: true, history });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// 2. Board Reports
+export async function getBoardReports(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const { data: reports, error } = await supabaseAdmin
+      .from('board_reports')
+      .select('*')
+      .eq('institution_id', institutionId)
+      .order('generated_at', { ascending: false });
+
+    if (error) throw error;
+    return res.status(200).json({ success: true, reports: reports || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+async function uploadPPTXToSupabase(fileBuffer: Buffer, fileName: string): Promise<string> {
+  try {
+    const bucketName = 'reports';
+    const { data, error } = await supabaseAdmin.storage
+      .from(bucketName)
+      .upload(fileName, fileBuffer, {
+        contentType: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+        upsert: true
+      });
+
+    if (error) {
+      logger.error('PPTX storage upload failed: ' + error.message);
+      return `https://dummy-reports.iris365.in/reports/${fileName}`;
+    }
+
+    const { data: publicUrlData } = supabaseAdmin.storage
+      .from(bucketName)
+      .getPublicUrl(fileName);
+
+    return publicUrlData.publicUrl;
+  } catch (err) {
+    logger.error('Failed uploading PPTX:', err);
+    return `https://dummy-reports.iris365.in/reports/${fileName}`;
+  }
+}
+
+export async function generateBoardReport(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const { quarter, year } = req.body;
+
+    if (!quarter || !year) {
+      return res.status(400).json({ success: false, error: 'Quarter and Year are required fields.' });
+    }
+
+    const scriptPath = path.join(process.cwd(), 'scripts', 'generate_board_report.py');
+    const tempFileName = `Board_Report_Q${quarter}_${year}_${Date.now()}.pptx`;
+    const tempFilePath = path.join(process.cwd(), 'scripts', tempFileName);
+
+    // Aggregate mock telemetry details to enrich the slides
+    const mockDataPayload = JSON.stringify({
+      attendance_rate: 82.5,
+      fee_collection_percent: 78,
+      module_adoption: 76,
+      canteen_users: 450,
+      net_surplus: '33.4L'
+    });
+
+    let pptxUrl = '';
+    try {
+      // Execute the python presentation builder
+      await execPromise(`python "${scriptPath}" --institution "SIET Campus" --quarter ${quarter} --year ${year} --output "${tempFilePath}" --data '${mockDataPayload}'`);
+      
+      const fileBuffer = fs.readFileSync(tempFilePath);
+      pptxUrl = await uploadPPTXToSupabase(fileBuffer, tempFileName);
+      
+      // cleanup
+      fs.unlinkSync(tempFilePath);
+    } catch (err: any) {
+      logger.warn('Failed executing python-pptx report builder. Falling back to default URL link: ' + err.message);
+      pptxUrl = `https://dummy-reports.iris365.in/reports/${tempFileName}`;
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('board_reports')
+      .insert({
+        institution_id: institutionId,
+        quarter,
+        year,
+        pptx_url: pptxUrl,
+        sent_to: []
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.status(201).json({ success: true, report: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function emailBoardReport(req: Request, res: Response) {
+  try {
+    const { reportId, sent_to } = req.body;
+    if (!reportId || !sent_to || !Array.isArray(sent_to)) {
+      return res.status(400).json({ success: false, error: 'Invalid reportId or sent_to array.' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('board_reports')
+      .update({ sent_to })
+      .eq('id', reportId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    logger.info(`[MOCK EMAIL] Board report ${reportId} emailed to: ${sent_to.join(', ')}`);
+    return res.status(200).json({ success: true, report: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// 3. Real-Time Financial P&L
+export async function getFinancialPL(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const month = parseInt(req.query.month as string) || new Date().getMonth() + 1;
+    const year = parseInt(req.query.year as string) || new Date().getFullYear();
+
+    // 1. Fetch manual costs if entered
+    const { data: plRecord } = await supabaseAdmin
+      .from('financial_pl')
+      .select('*')
+      .eq('institution_id', institutionId)
+      .eq('month', month)
+      .eq('year', year)
+      .maybeSingle();
+
+    // Standard costs configuration baseline
+    const costBreakdown = plRecord?.cost_breakdown || {
+      staff: 1200000,
+      maintenance: 300000,
+      utilities: 150000
+    };
+
+    // 2. Aggregate actual dynamic revenues from database
+    let feesRevenue = 4100000; // default baseline
+    let canteenRevenue = 115000;
+    let eventsRevenue = 60000;
+    let gymRevenue = 42000;
+    let hostelRevenue = 620000;
+
+    try {
+      // Query completed fees for specified month
+      const { data: fees } = await supabaseAdmin
+        .from('fee_payments')
+        .select('amount_paid')
+        .eq('institution_id', institutionId)
+        .eq('status', 'Completed')
+        .gte('payment_date', `${year}-${String(month).padStart(2, '0')}-01`)
+        .lte('payment_date', `${year}-${String(month).padStart(2, '0')}-31`);
+      
+      if (fees && fees.length > 0) {
+        feesRevenue = fees.reduce((acc, f: any) => acc + parseFloat(f.amount_paid), 0);
+      }
+    } catch {}
+
+    try {
+      // Query completed canteen orders
+      const { data: orders } = await supabaseAdmin
+        .from('canteen_orders')
+        .select('total_amount')
+        .eq('institution_id', institutionId)
+        .eq('payment_status', 'Completed')
+        .gte('order_time', `${year}-${String(month).padStart(2, '0')}-01T00:00:00Z`)
+        .lte('order_time', `${year}-${String(month).padStart(2, '0')}-31T23:59:59Z`);
+
+      if (orders && orders.length > 0) {
+        canteenRevenue = orders.reduce((acc, o: any) => acc + parseFloat(o.total_amount), 0);
+      }
+    } catch {}
+
+    const revenueBreakdown = {
+      fees: feesRevenue,
+      canteen: canteenRevenue,
+      events: eventsRevenue,
+      gym: gymRevenue,
+      hostel: hostelRevenue
+    };
+
+    const totalRevenue = feesRevenue + canteenRevenue + eventsRevenue + gymRevenue + hostelRevenue;
+    const totalCosts = Object.values(costBreakdown).reduce((acc: number, c: any) => acc + parseFloat(c), 0);
+    const netSurplus = totalRevenue - totalCosts;
+
+    // Break-even per module calculations (revenue vs operational allocation)
+    const breakEvenPoints = [
+      { module: 'Canteen', break_even_users: 120, current_users: 450, status: 'profitable' },
+      { module: 'FitZone Gym', break_even_users: 80, current_users: 110, status: 'profitable' },
+      { module: 'Transit Buses', break_even_users: 150, current_users: 140, status: 'deficit' },
+      { module: 'Library+', break_even_users: 50, current_users: 90, status: 'profitable' }
+    ];
+
+    // Cash flow forecast for next 3 months (compounded projections)
+    const forecast = Array.from({ length: 3 }).map((_, idx) => {
+      const fMonth = (month + idx) % 12 + 1;
+      const fYear = year + Math.floor((month + idx) / 12);
+      const growthFactor = 1 + (idx + 1) * 0.025; // 2.5% monthly compound growth
+      return {
+        month: fMonth,
+        year: fYear,
+        projected_revenue: Math.round(totalRevenue * growthFactor),
+        projected_costs: Math.round(totalCosts * 1.01), // 1% cost escalation
+        projected_surplus: Math.round(totalRevenue * growthFactor - totalCosts * 1.01)
+      };
+    });
+
+    // 6-Month historical P&L trend chart records
+    const { data: trendRecords } = await supabaseAdmin
+      .from('financial_pl')
+      .select('*')
+      .eq('institution_id', institutionId)
+      .order('year', { ascending: false })
+      .order('month', { ascending: false })
+      .limit(6);
+
+    const trend = (trendRecords || []).map((t: any) => ({
+      month: t.month,
+      year: t.year,
+      revenue: Object.values(t.revenue_breakdown).reduce((acc: number, r: any) => acc + parseFloat(r), 0),
+      costs: Object.values(t.cost_breakdown).reduce((acc: number, c: any) => acc + parseFloat(c), 0),
+      surplus: parseFloat(t.net_surplus)
+    })).reverse();
+
+    // Include current month in trend if missing
+    if (trend.length === 0) {
+      trend.push({ month, year, revenue: totalRevenue, costs: totalCosts, surplus: netSurplus });
+    }
+
+    return res.status(200).json({
+      success: true,
+      month,
+      year,
+      revenue_breakdown: revenueBreakdown,
+      cost_breakdown: costBreakdown,
+      total_revenue: totalRevenue,
+      total_costs: totalCosts,
+      net_surplus: netSurplus,
+      break_even: breakEvenPoints,
+      forecast,
+      trend
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function saveFinancialCosts(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const { month, year, cost_breakdown, revenue_breakdown, net_surplus } = req.body;
+
+    const { data, error } = await supabaseAdmin
+      .from('financial_pl')
+      .upsert({
+        institution_id: institutionId,
+        month,
+        year,
+        cost_breakdown,
+        revenue_breakdown,
+        net_surplus
+      }, { onConflict: 'institution_id,month,year' })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.status(200).json({ success: true, record: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// 4. Competitor Benchmarking
+export async function getCompetitorBenchmarks(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const { data: benchmarks, error } = await supabaseAdmin
+      .from('competitor_benchmarks')
+      .select('*')
+      .eq('institution_id', institutionId);
+
+    if (error) throw error;
+
+    const suggestions = [
+      { metric: 'Attendance Rate', suggestion: 'Introduce RFID bus scans to capture transit-linked attendance automatically.' },
+      { metric: 'Fee Collection Rate', suggestion: 'Configure auto-whatsapp reminders 3 days prior to fee structures installments due date.' },
+      { metric: 'Module Adoption (FitZone)', suggestion: 'Run virtual classes stream logs directly in student mobile feed to boost subscriptions.' }
+    ];
+
+    return res.status(200).json({ success: true, benchmarks: benchmarks || [], suggestions });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// 5. Student Journey Analytics
+export async function getStudentJourneyScores(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    
+    // Fetch scores joined with student & department details
+    const { data: scores, error } = await supabaseAdmin
+      .from('student_journey_scores')
+      .select('*, students!inner(*, users(*), departments(name))')
+      .eq('students.institution_id', institutionId);
+
+    if (error) throw error;
+
+    const formattedScores = (scores || []).map((s: any) => ({
+      id: s.id,
+      student_id: s.student_id,
+      roll_number: s.students?.roll_number,
+      name: s.students?.users?.name,
+      department: s.students?.departments?.name,
+      engagement_score: parseFloat(s.engagement_score),
+      academic_score: parseFloat(s.academic_score),
+      social_score: parseFloat(s.social_score),
+      facility_score: parseFloat(s.facility_score),
+      overall_score: parseFloat(s.overall_score),
+      intervention_status: s.intervention_status,
+      calculated_at: s.calculated_at
+    }));
+
+    // Categorizations
+    const ambassadors = formattedScores.filter(s => s.overall_score >= 85);
+    const disengaged = formattedScores.filter(s => s.overall_score < 50);
+
+    // Group by department for radar/bar comparisons
+    const departmentAverages: Record<string, { sum: number, count: number }> = {};
+    formattedScores.forEach(s => {
+      const dept = s.department || 'General';
+      if (!departmentAverages[dept]) {
+        departmentAverages[dept] = { sum: 0, count: 0 };
+      }
+      departmentAverages[dept].sum += s.overall_score;
+      departmentAverages[dept].count += 1;
+    });
+
+    const departmentEngagement = Object.keys(departmentAverages).map(dept => ({
+      department: dept,
+      average_engagement: Math.round((departmentAverages[dept].sum / departmentAverages[dept].count) * 100) / 100
+    }));
+
+    return res.status(200).json({
+      success: true,
+      scores: formattedScores,
+      ambassadors,
+      disengaged,
+      department_engagement: departmentEngagement
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function assignCounselorIntervention(req: Request, res: Response) {
+  try {
+    const { studentId } = req.body;
+    if (!studentId) {
+      return res.status(400).json({ success: false, error: 'studentId is required.' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('student_journey_scores')
+      .update({ intervention_status: 'counselor_assigned' })
+      .eq('student_id', studentId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    logger.info(`[INTERVENTION] Counselor assigned successfully for student: ${studentId}`);
+    return res.status(200).json({ success: true, score: data });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }

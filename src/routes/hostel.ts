@@ -29,7 +29,21 @@ import {
   listNotices,
   createNotice,
   generateGatePassPdf,
-  generateAllotmentLetterPdf
+  generateAllotmentLetterPdf,
+  saveRoommatePreferences,
+  getCompatibilityScores,
+  getMatchMatrix,
+  logIotReading,
+  getIotTrends,
+  getIotMonthlyReport,
+  getComplaintPredictions,
+  getEquipmentLifecycle,
+  startRollCall,
+  confirmRollCall,
+  getRollCallStatus,
+  logWellnessCheckin,
+  getWellnessTrends,
+  getWellnessAlerts
 } from '../controllers/hostel';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -83,5 +97,29 @@ router.post('/notices', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']),
 // ========== 8. PDF RENDERERS ==========
 router.get('/visitors/:visitorId/report/pdf', generateGatePassPdf);
 router.get('/allocations/:allocationId/report/pdf', generateAllotmentLetterPdf);
+
+// ========== 9. SMART ROOMMATE MATCHING ==========
+router.post('/preferences', requireRole(['Student', 'Warden', 'Staff', 'Admin', 'SuperAdmin']), saveRoommatePreferences);
+router.get('/preferences/compatibility/:studentId', requireRole(['Student', 'Warden', 'Staff', 'Admin', 'SuperAdmin']), getCompatibilityScores);
+router.get('/preferences/match-matrix', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), getMatchMatrix);
+
+// ========== 10. IoT ROOM MONITORING ==========
+router.post('/iot/reading', requireRole(['Admin', 'SuperAdmin', 'Warden', 'Staff', 'Security']), logIotReading);
+router.get('/iot/trends', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), getIotTrends);
+router.get('/iot/report', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), getIotMonthlyReport);
+
+// ========== 11. PREDICTIVE MAINTENANCE ==========
+router.get('/maintenance/predict', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), getComplaintPredictions);
+router.get('/maintenance/equipment', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), getEquipmentLifecycle);
+
+// ========== 12. DIGITAL NIGHT ROLL CALL ==========
+router.post('/rollcall/start', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), startRollCall);
+router.post('/rollcall/confirm', requireRole(['Student']), confirmRollCall);
+router.get('/rollcall/status/:id', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), getRollCallStatus);
+
+// ========== 13. MENTAL WELLNESS CHECK-IN ==========
+router.post('/wellness/checkin', requireRole(['Student']), logWellnessCheckin);
+router.get('/wellness/trends', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), getWellnessTrends);
+router.get('/wellness/alerts', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), getWellnessAlerts);
 
 export default router;

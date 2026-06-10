@@ -24,7 +24,21 @@ import {
   createMaintenance,
   getMaintenance,
   getLatestPositionsAll,
-  getDrivers
+  getDrivers,
+  analyzeRouteOptimizer,
+  getSuggestions,
+  approveSuggestion,
+  getPredictiveArrival,
+  triggerSos,
+  getSosAlerts,
+  resolveSos,
+  getSosReport,
+  getCarbonFootprint,
+  issueCarbonCertificate,
+  registerVehicle,
+  getParkingSlots,
+  occupyParkingSlot,
+  getParkingAlerts
 } from '../controllers/transit';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -75,4 +89,29 @@ router.put('/incidents/:id/status', requireRole(['Admin', 'SuperAdmin']), update
 router.post('/maintenance', requireRole(['Admin', 'SuperAdmin']), createMaintenance);
 router.get('/maintenance', requireRole(['Admin', 'SuperAdmin']), getMaintenance);
 
+// --- AI ROUTE OPTIMIZER (NEW) ---
+router.post('/ai-route-optimizer/analyze', requireRole(['Admin', 'SuperAdmin']), analyzeRouteOptimizer);
+router.get('/ai-route-optimizer/suggestions', requireRole(['Admin', 'SuperAdmin']), getSuggestions);
+router.post('/ai-route-optimizer/approve/:id', requireRole(['Admin', 'SuperAdmin']), approveSuggestion);
+
+// --- ML PREDICTIVE ARRIVAL (NEW) ---
+router.get('/routes/:id/predictive-arrival', getPredictiveArrival);
+
+// --- PARENT SOS SYSTEM (NEW) ---
+router.post('/sos/trigger', triggerSos);
+router.get('/sos/alerts', getSosAlerts);
+router.post('/sos/resolve/:id', resolveSos);
+router.get('/sos/report/:id', getSosReport);
+
+// --- CARBON FOOTPRINT TRACKER (NEW) ---
+router.get('/carbon/tracker', getCarbonFootprint);
+router.post('/carbon/issue-certificate', requireRole(['Admin', 'SuperAdmin']), issueCarbonCertificate);
+
+// --- CAMPUS PARKING MANAGEMENT (NEW) ---
+router.post('/parking/register', registerVehicle);
+router.get('/parking/slots', getParkingSlots);
+router.post('/parking/occupy', occupyParkingSlot);
+router.get('/parking/alerts', requireRole(['Admin', 'SuperAdmin']), getParkingAlerts);
+
 export default router;
+

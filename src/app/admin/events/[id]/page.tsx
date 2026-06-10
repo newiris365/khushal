@@ -390,6 +390,30 @@ export default function ManageEventPage() {
             </div>
 
             <div className="flex gap-2 flex-wrap">
+              {/* AI Planner */}
+              <Link
+                href={`/admin/events/${eventId}/ai-plan`}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-[#6C2BD9]/20 to-[#8B5CF6]/20 hover:from-[#6C2BD9]/30 hover:to-[#8B5CF6]/30 border border-[#6C2BD9]/30 text-xs font-bold text-white transition-all flex items-center gap-2"
+              >
+                <Sparkles className="w-4 h-4 text-amber-300 animate-pulse" /> AI Planner
+              </Link>
+
+              {/* QR Checkin Scanner */}
+              <Link
+                href={`/admin/events/${eventId}/checkin`}
+                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-white transition-all flex items-center gap-2"
+              >
+                <Ticket className="w-4 h-4 text-[#A78BFA]" /> Check-In QR
+              </Link>
+
+              {/* Live Moderation Control */}
+              <Link
+                href={`/admin/events/${eventId}/live`}
+                className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-xs font-bold text-white transition-all flex items-center gap-2"
+              >
+                <PlusCircle className="w-4 h-4 text-[#A78BFA]" /> Live Board
+              </Link>
+
               {/* PDF download */}
               <button
                 onClick={handleDownloadPdf}

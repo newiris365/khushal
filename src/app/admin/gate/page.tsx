@@ -131,6 +131,30 @@ export default function AdminGateConsolePage() {
             </Link>
           </div>
 
+          <div className="bg-gradient-to-br from-[#1E1B4B]/70 to-[#13102A]/70 border border-[#8B5CF6]/20 p-6 rounded-3xl shadow-xl space-y-3">
+            <h3 className="font-bold text-sm text-white text-red-400">AI Threat detection</h3>
+            <p className="text-[11px] text-[#C4B5FD]/70">CCTV anomalies motion logs, ALPR recognition warning alarms feed.</p>
+            <Link href="/admin/gate/threats" className="text-xs font-bold text-[#A78BFA] hover:text-white transition-all flex items-center gap-1.5">
+              CCTV Threat Feed <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="bg-gradient-to-br from-[#1E1B4B]/70 to-[#13102A]/70 border border-[#8B5CF6]/20 p-6 rounded-3xl shadow-xl space-y-3">
+            <h3 className="font-bold text-sm text-white text-emerald-400">Emergency Muster</h3>
+            <p className="text-[11px] text-[#C4B5FD]/70">Initiate evacuation drills, track unaccounted commuters, print stats.</p>
+            <Link href="/admin/gate/muster" className="text-xs font-bold text-[#A78BFA] hover:text-white transition-all flex items-center gap-1.5">
+              Evac Muster Console <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
+          <div className="bg-gradient-to-br from-[#1E1B4B]/70 to-[#13102A]/70 border border-[#8B5CF6]/20 p-6 rounded-3xl shadow-xl space-y-3">
+            <h3 className="font-bold text-sm text-white text-[#A78BFA]">Contractors Registry</h3>
+            <p className="text-[11px] text-[#C4B5FD]/70">Register builder firms, daily entry permit passes, completion signoff.</p>
+            <Link href="/admin/gate/contractors" className="text-xs font-bold text-[#A78BFA] hover:text-white transition-all flex items-center gap-1.5">
+              Manage Contractors <ArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+
         </div>
 
         {/* Chart representation & Live activities split grid */}

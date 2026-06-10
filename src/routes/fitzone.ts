@@ -31,7 +31,22 @@ import {
   getFitnessMetrics,
   logWorkout,
   getStudentWorkouts,
-  generateFitnessReportPdf
+  generateFitnessReportPdf,
+  generateAiWorkoutPlan,
+  getActiveAiPlan,
+  adjustAiPlan,
+  logWellnessCheckin,
+  getWellnessStats,
+  getChallenges,
+  createChallenge,
+  joinChallenge,
+  logChallengeProgress,
+  getChallengeLeaderboard,
+  getVirtualClasses,
+  createVirtualClass,
+  streamVirtualClass,
+  getStudentFitPoints,
+  getFitPointsLeaderboard
 } from '../controllers/fitzone';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -86,5 +101,29 @@ router.post('/gym/workouts', requireRole(['Student']), logWorkout);
 router.get('/gym/workouts/:studentId', getStudentWorkouts);
 
 router.get('/gym/report/:studentId', generateFitnessReportPdf);
+
+// ========== 6. AI WORKOUT PLANS ==========
+router.post('/gym/ai-plan/generate', requireRole(['Student']), generateAiWorkoutPlan);
+router.get('/gym/ai-plan/:studentId/active', getActiveAiPlan);
+router.post('/gym/ai-plan/:id/adjust', adjustAiPlan);
+
+// ========== 7. WELLNESS CHECKINS ==========
+router.post('/gym/wellness/checkin', requireRole(['Student']), logWellnessCheckin);
+router.get('/gym/wellness/:studentId', getWellnessStats);
+
+// ========== 8. FITNESS CHALLENGES & FITPOINTS ==========
+router.get('/gym/challenges', getChallenges);
+router.post('/gym/challenges', requireRole(['Admin', 'SuperAdmin']), createChallenge);
+router.post('/gym/challenges/:id/join', requireRole(['Student']), joinChallenge);
+router.post('/gym/challenges/:id/log', requireRole(['Student']), logChallengeProgress);
+router.get('/gym/challenges/:id/leaderboard', getChallengeLeaderboard);
+
+router.get('/gym/fitpoints/:studentId', getStudentFitPoints);
+router.get('/gym/leaderboard', getFitPointsLeaderboard);
+
+// ========== 9. VIRTUAL CLASSES ==========
+router.get('/gym/classes', getVirtualClasses);
+router.post('/gym/classes', requireRole(['Staff', 'Gym Trainer', 'Admin', 'SuperAdmin']), createVirtualClass);
+router.get('/gym/classes/:id/stream', streamVirtualClass);
 
 export default router;

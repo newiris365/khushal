@@ -7,6 +7,7 @@ import {
   updateMenuItem,
   deleteMenuItem,
   toggleMenuAvailability,
+  getMenuByCategory,
   // Categories
   getCategories,
   createCategory,
@@ -16,10 +17,15 @@ import {
   updateOrderStatus,
   getStudentOrders,
   getAllOrders,
+  getOrderById,
+  cancelOrder,
+  getOrdersQueue,
   // Wallet
   topupWallet,
   getWalletBalance,
   getWalletTransactions,
+  initiateWalletTopup,
+  verifyWalletTopup,
   // Feedback
   submitFeedback,
   getAllFeedback,
@@ -27,14 +33,33 @@ import {
   getOffers,
   createOffer,
   deleteOffer,
+  validateOfferCode,
   // Pre-orders
   createPreorder,
   getStudentPreorders,
-  // Subscriptions
+  // Subscriptions & Meal Plans
   createSubscription,
   getStudentSubscriptions,
+  getMealPlans,
+  createMealPlan,
+  subscribeMealPlan,
+  selectDailyMeal,
+  // AI Menu
+  generateAIMenu,
+  getCurrentAIMenu,
+  approveAIMenu,
   // Analytics
-  getAnalytics
+  getAnalytics,
+  getAnalyticsToday,
+  getAnalyticsWeekly,
+  getAnalyticsItems,
+  getAnalyticsForecast,
+  getNutritionSummary,
+  // Hygiene
+  submitHygieneChecklist,
+  getHygieneReport,
+  // Express Counter Face checkout
+  faceCheckout
 } from '../controllers/canteen';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -45,11 +70,13 @@ router.use(authMiddleware);
 
 // ──── MENU ────────────────────────────────────────────────────
 router.get('/menu', getMenu);
+router.get('/menu/category/:id', getMenuByCategory);
 router.get('/menu/all', requireRole(['Admin', 'SuperAdmin', 'Vendor']), getAllMenuItems);
 router.post('/menu', requireRole(['Admin', 'SuperAdmin', 'Vendor']), createMenuItem);
 router.put('/menu/:id', requireRole(['Admin', 'SuperAdmin', 'Vendor']), updateMenuItem);
-router.delete('/menu/:id', requireRole(['Admin', 'SuperAdmin', 'Vendor']), deleteMenuItem);
+router.put('/menu/:id/availability', requireRole(['Admin', 'SuperAdmin', 'Vendor']), toggleMenuAvailability);
 router.put('/menu/:id/toggle', requireRole(['Admin', 'SuperAdmin', 'Vendor']), toggleMenuAvailability);
+router.delete('/menu/:id', requireRole(['Admin', 'SuperAdmin', 'Vendor']), deleteMenuItem);
 
 // ──── CATEGORIES ──────────────────────────────────────────────
 router.get('/categories', getCategories);
@@ -57,23 +84,49 @@ router.post('/categories', requireRole(['Admin', 'SuperAdmin', 'Vendor']), creat
 
 // ──── ORDERS ──────────────────────────────────────────────────
 router.post('/orders', placeOrder);
+router.get('/orders/queue', requireRole(['Admin', 'SuperAdmin', 'Vendor']), getOrdersQueue);
 router.get('/orders/active', requireRole(['Admin', 'SuperAdmin', 'Vendor']), getActiveOrders);
 router.get('/orders/all', requireRole(['Admin', 'SuperAdmin', 'Vendor']), getAllOrders);
-router.get('/orders/:studentId', getStudentOrders);
+router.get('/orders/student/:studentId', getStudentOrders);
+router.get('/orders/:orderId', getOrderById);
+router.post('/orders/:id/cancel', cancelOrder);
 router.put('/orders/:id/status', requireRole(['Admin', 'SuperAdmin', 'Vendor']), updateOrderStatus);
 
 // ──── WALLET ──────────────────────────────────────────────────
 router.post('/wallet/topup', topupWallet);
+router.post('/wallet/topup/initiate', initiateWalletTopup);
+router.post('/wallet/topup/verify', verifyWalletTopup);
 router.get('/wallet/:studentId', getWalletBalance);
-router.get('/wallet/:studentId/transactions', getWalletTransactions);
+router.get('/wallet/transactions/:studentId', getWalletTransactions);
 
-// ──── FEEDBACK ────────────────────────────────────────────────
-router.post('/feedback', submitFeedback);
-router.get('/feedback', requireRole(['Admin', 'SuperAdmin', 'Vendor']), getAllFeedback);
+// ──── MEAL PLANS ──────────────────────────────────────────────
+router.get('/meal-plans', getMealPlans);
+router.post('/meal-plans', requireRole(['Admin', 'SuperAdmin', 'Vendor']), createMealPlan);
+router.post('/meal-plans/:id/subscribe', subscribeMealPlan);
+router.get('/meal-subscriptions/:studentId', getStudentSubscriptions);
+router.post('/meal-selection', selectDailyMeal);
+
+// ──── AI MENU ─────────────────────────────────────────────────
+router.post('/ai-menu/generate', requireRole(['Admin', 'SuperAdmin', 'Vendor']), generateAIMenu);
+router.get('/ai-menu/current', getCurrentAIMenu);
+router.put('/ai-menu/:id/approve', requireRole(['Admin', 'SuperAdmin', 'Vendor']), approveAIMenu);
+
+// ──── ANALYTICS ───────────────────────────────────────────────
+router.get('/analytics', requireRole(['Admin', 'SuperAdmin', 'Vendor']), getAnalytics);
+router.get('/analytics/today', requireRole(['Admin', 'SuperAdmin', 'Vendor']), getAnalyticsToday);
+router.get('/analytics/weekly', requireRole(['Admin', 'SuperAdmin', 'Vendor']), getAnalyticsWeekly);
+router.get('/analytics/items', requireRole(['Admin', 'SuperAdmin', 'Vendor']), getAnalyticsItems);
+router.get('/analytics/forecast', requireRole(['Admin', 'SuperAdmin', 'Vendor']), getAnalyticsForecast);
+router.get('/nutrition/:studentId', getNutritionSummary);
+
+// ──── HYGIENE ─────────────────────────────────────────────────
+router.post('/hygiene/checklist', requireRole(['Vendor']), submitHygieneChecklist);
+router.get('/hygiene/report', requireRole(['Admin', 'SuperAdmin', 'Vendor']), getHygieneReport);
 
 // ──── OFFERS ──────────────────────────────────────────────────
 router.get('/offers', getOffers);
 router.post('/offers', requireRole(['Admin', 'SuperAdmin', 'Vendor']), createOffer);
+router.post('/offers/validate', validateOfferCode);
 router.delete('/offers/:id', requireRole(['Admin', 'SuperAdmin', 'Vendor']), deleteOffer);
 
 // ──── PRE-ORDERS ──────────────────────────────────────────────
@@ -84,7 +137,7 @@ router.get('/preorders/:studentId', getStudentPreorders);
 router.post('/subscriptions', createSubscription);
 router.get('/subscriptions/:studentId', getStudentSubscriptions);
 
-// ──── ANALYTICS ───────────────────────────────────────────────
-router.get('/analytics', requireRole(['Admin', 'SuperAdmin', 'Vendor']), getAnalytics);
+// ──── EXPRESS COUNTER ─────────────────────────────────────────
+router.post('/express/checkout-face', faceCheckout);
 
 export default router;

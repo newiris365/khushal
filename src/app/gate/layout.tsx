@@ -1,7 +1,7 @@
 "use client";
 
 import PortalShell, { SidebarLink } from '../../components/PortalShell';
-import { LayoutDashboard, UserCheck, AlertTriangle, Users, Clock, KeyRound } from 'lucide-react';
+import { LayoutDashboard, UserCheck, AlertTriangle, Users, Clock, KeyRound, Phone } from 'lucide-react';
 
 const gateLinks: SidebarLink[] = [
   { label: 'Live Dashboard', href: '/gate', icon: LayoutDashboard },
@@ -11,6 +11,8 @@ const gateLinks: SidebarLink[] = [
   { label: 'Exit Passes', href: '/gate/exit-pass', icon: KeyRound },
   { label: 'My Pass', href: '/gate/my-pass', icon: KeyRound },
   { label: 'Incidents', href: '/gate/incidents', icon: AlertTriangle },
+  { label: 'Emergency Muster', href: '/gate/muster', icon: AlertTriangle },
+  { label: 'Smart Intercom', href: '/gate/intercom', icon: Phone },
 ];
 
 export default function GateLayout({ children }: { children: React.ReactNode }) {

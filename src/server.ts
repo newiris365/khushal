@@ -19,6 +19,7 @@ import directorRouter from './routes/director';
 import aiConciergeRouter from './routes/aiConcierge';
 import libraryRouter from './routes/library';
 import gateRouter from './routes/gate';
+import parentRouter from './routes/parent';
 import { initGateHardware } from './services/gateHardware';
 
 dotenv.config();
@@ -143,6 +144,21 @@ directorNs.on('connection', (socket) => {
   });
 });
 
+// Socket.io namespace: Live Event Interactive Panel
+const eventsNs = io.of('/events-live');
+eventsNs.on('connection', (socket) => {
+  logger.info('Live Event client connected', { socketId: socket.id });
+
+  socket.on('join_event', (eventId: string) => {
+    socket.join(`event_${eventId}`);
+    logger.debug(`Socket ${socket.id} joined event_${eventId}`);
+  });
+
+  socket.on('disconnect', () => {
+    logger.debug('Live Event client disconnected', { socketId: socket.id });
+  });
+});
+
 // Periodically broadcast KPI updates to director:dashboard room every 30 seconds
 setInterval(async () => {
   try {
@@ -158,7 +174,7 @@ setInterval(async () => {
 }, 30000);
 
 // Export io for use in controllers (e.g. transit GPS broadcast)
-export { io, transitNs, notificationsNs, canteenNs, gateNs, directorNs };
+export { io, transitNs, notificationsNs, canteenNs, gateNs, directorNs, eventsNs };
 
 // Security and CORS middleware configuration
 app.use(helmet());
@@ -192,10 +208,13 @@ app.use((req, res, next) => {
 // Routes mapping (auth gets stricter rate limiter)
 app.use('/api/v1/auth', authLimiter, authRouter);
 app.use('/api/v1/core', coreRouter);
+app.use('/api/canteen', canteenRouter);
 app.use('/api/v1/canteen', canteenRouter);
 app.use('/api/v1/hostel-gate', hostelGateRouter);
 app.use('/api/v1/lib-events', libEventsRouter);
 app.use('/api/v1/fitzone', fitzoneRouter);
+app.use('/api/gym', fitzoneRouter);
+app.use('/api/fitzone', fitzoneRouter);
 app.use('/api/v1/events', eventsRouter);
 app.use('/api/v1/hostel', hostelRouter);
 app.use('/api/v1/transit', transitRouter);
@@ -204,6 +223,8 @@ app.use('/api/v1/ai', aiConciergeRouter);
 app.use('/api/library', libraryRouter);
 app.use('/api/gate', gateRouter);
 app.use('/api/v1/gate', gateRouter);
+app.use('/api/parent', parentRouter);
+app.use('/api/v1/parent', parentRouter);
 
 // Health Check endpoint
 app.get('/health', (req, res) => {

@@ -44,7 +44,14 @@ import {
   saveCardTemplate,
   generateCard,
   generateBulkCards,
-  verifyCard
+  verifyCard,
+  getFraudLogs,
+  getStudentHealthScore,
+  getHealthScoresReport,
+  calculateHealthScores,
+  assignSubstitute,
+  createInstallmentPlan,
+  getEligibleScholarships
 } from '../controllers/campusCore';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -67,12 +74,16 @@ router.get('/attendance/student/:id', getStudentAttendance);
 router.get('/attendance/report/:departmentId', requireRole(['Staff', 'Admin', 'SuperAdmin']), getAttendanceReport);
 router.post('/attendance/regularize', requireRole(['Student']), submitRegularize);
 router.put('/attendance/regularize/:id/approve', requireRole(['Staff', 'Admin', 'SuperAdmin']), approveRegularize);
+router.get('/attendance/fraud-logs', requireRole(['Staff', 'Admin', 'SuperAdmin']), getFraudLogs);
 
 // =========================================================================
 // 2. STUDENTS CRUD ROUTERS
 // =========================================================================
 router.get('/students', getStudents);
 router.post('/students', requireRole(['Admin', 'SuperAdmin']), createStudent);
+router.get('/students/health-scores/report', requireRole(['Staff', 'Admin', 'SuperAdmin']), getHealthScoresReport);
+router.post('/students/health-scores/calculate', requireRole(['Staff', 'Admin', 'SuperAdmin']), calculateHealthScores);
+router.get('/students/:id/health-score', getStudentHealthScore);
 router.get('/students/:id', getStudentById);
 router.put('/students/:id', requireRole(['Admin', 'SuperAdmin']), updateStudent);
 router.delete('/students/:id', requireRole(['Admin', 'SuperAdmin']), deleteStudent);
@@ -87,6 +98,7 @@ router.put('/timetable/:id', requireRole(['Admin', 'SuperAdmin']), updateTimetab
 router.delete('/timetable/:id', requireRole(['Admin', 'SuperAdmin']), deleteTimetableBlock);
 router.post('/timetable/auto-generate', requireRole(['Admin', 'SuperAdmin']), autoGenerateTimetable);
 router.get('/timetable/student/:studentId', getStudentTimetable);
+router.post('/timetable/substitute', requireRole(['Admin', 'SuperAdmin']), assignSubstitute);
 
 // =========================================================================
 // 4. FEES ROUTERS
@@ -99,6 +111,8 @@ router.get('/fees/student/:studentId', getStudentFees);
 router.get('/fees/report', requireRole(['Admin', 'SuperAdmin']), getFeesReport);
 router.post('/fees/concession', requireRole(['Admin', 'SuperAdmin']), createConcession);
 router.post('/fees/reminder/trigger', requireRole(['Admin', 'SuperAdmin']), triggerFeeReminders);
+router.post('/fees/installment-plan', requireRole(['Admin', 'SuperAdmin']), createInstallmentPlan);
+router.get('/fees/scholarship/eligible', requireRole(['Admin', 'SuperAdmin']), getEligibleScholarships);
 
 // =========================================================================
 // 5. NOTICES ROUTERS

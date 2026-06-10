@@ -27,7 +27,7 @@ const adminLinks: SidebarLink[] = [
 ];
 
 // Deduplicate: Library link was pointing to /admin/ai, fix it
-adminLinks[8] = { label: 'Library', href: '/librarian/library', icon: BookOpen };
+adminLinks[8] = { label: 'Library', href: '/admin/library/bookclubs', icon: BookOpen };
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   return (

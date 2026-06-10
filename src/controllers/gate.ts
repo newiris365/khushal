@@ -1294,8 +1294,607 @@ export async function getDailyReport(req: Request, res: Response) {
     doc.fontSize(10).fillColor('#9CA3AF').text('Generated automatically by IRIS 365 Smart Gate Module. All logs signed by tenant security credentials.', { align: 'center' });
 
     doc.end();
+    doc.end();
   } catch (err: any) {
     logger.error('Failed compiling Daily PDF Gate Report: ' + err.message);
     return res.status(500).json({ success: false, error: 'Internal server error compiling PDF report.' });
   }
 }
+
+// ========== 27. AI THREAT DETECTION (CCTV WEBHOOK) ==========
+export async function cctvAnomalyWebhook(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id || 'a0000000-0000-0000-0000-000000000001';
+    const { alarm_type, gate_number, crowd_count, vehicle_plate, time_stamp } = req.body;
+
+    let alertTitle = 'Security Anomaly Detected';
+    let alertDetails = '';
+    let severity = 'low';
+
+    if (alarm_type === 'unusual_hours_entry') {
+      alertTitle = 'Unusual Hours Movement Warning';
+      alertDetails = `Student scanned card between 1-4 AM at Gate ${gate_number || 'Main'}. Timestamp: ${time_stamp || new Date().toLocaleTimeString()}`;
+      severity = 'medium';
+    } else if (alarm_type === 'crowd_density') {
+      alertTitle = 'Crowd Density Threshold Breached';
+      alertDetails = `CCTV feed detected crowd count of ${crowd_count || 55} at Gate ${gate_number || 'Main'} exceeding limit of 50.`;
+      severity = 'high';
+    } else if (alarm_type === 'license_plate_recognized') {
+      alertTitle = 'Vehicle Entrance Logged';
+      alertDetails = `ALPR Camera recognized plate ${vehicle_plate || 'RJ-19-CS-4412'} at entry parking barrier.`;
+      severity = 'low';
+    }
+
+    // Write security incident log if severity is medium or higher
+    if (severity !== 'low') {
+      await supabaseAdmin
+        .from('gate_incidents')
+        .insert({
+          institution_id: institutionId,
+          incident_type: alarm_type,
+          description: alertDetails,
+          location: `Gate ${gate_number || 'Main'}`,
+          severity,
+          status: 'open'
+        });
+    }
+
+    // Broadcast CCTV threat alert to security console room
+    try {
+      const { gateNs } = require('../server');
+      if (gateNs) {
+        gateNs.to('admin:gate').emit('security:threat_alert', {
+          alarm_type,
+          title: alertTitle,
+          description: alertDetails,
+          severity,
+          gate_number: gate_number || 'Main',
+          timestamp: new Date().toISOString()
+        });
+      }
+    } catch {
+      // Ignore Socket.io issues in dev
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'CCTV anomaly alert processed and broadcasted to dispatch security dashboards.',
+      alert: { title: alertTitle, description: alertDetails, severity }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error processing CCTV webhook.' });
+  }
+}
+
+// ========== 28. EMERGENCY MUSTERING SYSTEM ==========
+export async function triggerEmergencyMuster(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id;
+    const { trigger_type } = req.body; // fire, earthquake, drill
+
+    const { data: muster, error } = await supabaseAdmin
+      .from('emergency_muster')
+      .insert({
+        institution_id: institutionId,
+        triggered_by: req.user?.id,
+        trigger_type: trigger_type || 'drill'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    // Fetch all student profiles to seed unaccounted list
+    const { data: students } = await supabaseAdmin
+      .from('students')
+      .select('id');
+
+    if (students && students.length > 0) {
+      const responseSeeds = students.map(s => ({
+        muster_id: muster.id,
+        student_id: s.id,
+        status: 'unaccounted'
+      }));
+      await supabaseAdmin
+        .from('muster_responses')
+        .insert(responseSeeds);
+    }
+
+    // Broadcast emergency muster notice to all connected mobile apps
+    try {
+      const { gateNs } = require('../server');
+      if (gateNs) {
+        gateNs.emit('emergency:muster_active', {
+          muster_id: muster.id,
+          trigger_type: trigger_type || 'drill',
+          message: `EMERGENCY ALERT: ${trigger_type?.toUpperCase()} drill initiated. Proceed to nearest safe muster point immediately and mark safe.`
+        });
+      }
+    } catch {
+      // Ignore Socket.io issues in dev
+    }
+
+    return res.status(201).json({ success: true, muster });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error triggering muster.' });
+  }
+}
+
+export async function respondToMuster(req: Request, res: Response) {
+  try {
+    const { muster_id, student_id, location } = req.body;
+
+    if (!muster_id) {
+      return res.status(400).json({ success: false, error: 'Muster ID is required.' });
+    }
+
+    const targetStudentId = student_id || req.user?.student_id || 'c0000000-0000-0000-0000-000000000006';
+
+    const { data, error } = await supabaseAdmin
+      .from('muster_responses')
+      .upsert({
+        muster_id,
+        student_id: targetStudentId,
+        status: 'safe',
+        marked_safe_at: new Date().toISOString(),
+        location: location || 'Main Field'
+      }, { onConflict: 'muster_id,student_id' })
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    // Broadcast updated safe counts to admin security room
+    try {
+      const { gateNs } = require('../server');
+      if (gateNs) {
+        gateNs.to('admin:gate').emit('emergency:muster_update', {
+          student_id: targetStudentId,
+          status: 'safe',
+          location: location || 'Main Field'
+        });
+      }
+    } catch {
+      // Ignore Socket.io issues in dev
+    }
+
+    return res.status(200).json({ success: true, response: data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error logging muster check-in.' });
+  }
+}
+
+export async function getLiveMuster(req: Request, res: Response) {
+  try {
+    const { id } = req.params; // muster_id
+
+    const { data: responses, error } = await supabaseAdmin
+      .from('muster_responses')
+      .select('*, students(*, users(name))')
+      .eq('muster_id', id);
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    const safeList = responses ? responses.filter(r => r.status === 'safe') : [];
+    const unaccountedList = responses ? responses.filter(r => r.status === 'unaccounted') : [];
+
+    return res.status(200).json({
+      success: true,
+      safe_count: safeList.length,
+      unaccounted_count: unaccountedList.length,
+      safe: safeList,
+      unaccounted: unaccountedList
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error.' });
+  }
+}
+
+export async function resolveMuster(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+
+    const { data, error } = await supabaseAdmin
+      .from('emergency_muster')
+      .update({ resolved_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('institution_id', req.user?.institution_id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      return res.status(500).json({ success: false, error: error?.message || 'Muster record not found.' });
+    }
+
+    return res.status(200).json({ success: true, muster: data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error.' });
+  }
+}
+
+export async function getMusterReport(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+
+    const { data: muster } = await supabaseAdmin
+      .from('emergency_muster')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    const { data: responses } = await supabaseAdmin
+      .from('muster_responses')
+      .select('*, students(*, users(name))')
+      .eq('muster_id', id);
+
+    const safeList = responses ? responses.filter(r => r.status === 'safe') : [];
+    const unaccountedList = responses ? responses.filter(r => r.status === 'unaccounted') : [];
+
+    const reportText = `========================================================================
+CAMPUS MUSTER EMERGENCY REPORT
+MUSTER ID: ${id}
+TYPE: ${muster?.trigger_type?.toUpperCase() || 'DRILL'}
+TRIGGER TIME: ${new Date(muster?.trigger_time).toLocaleString()}
+RESOLVED AT: ${muster?.resolved_at ? new Date(muster.resolved_at).toLocaleString() : 'Active/Unresolved'}
+========================================================================
+SAFETY STATS:
+   - Total safe commuters: ${safeList.length}
+   - Total unaccounted commuters: ${unaccountedList.length}
+   - Safety compliance rate: ${Math.round((safeList.length / (responses?.length || 1)) * 100)}%
+
+SAFE COMMUTERS LIST BY LOCATION:
+${safeList.map(s => `   * ${s.students?.users?.name} - ${s.location} (${new Date(s.marked_safe_at).toLocaleTimeString()})`).join('\n')}
+
+UNACCOUNTED COMMUTERS:
+${unaccountedList.map(u => `   * ${u.students?.users?.name || 'Student'}`).join('\n')}
+========================================================================`;
+
+    return res.status(200).json({
+      success: true,
+      report_text: reportText
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error compiling compliance report.' });
+  }
+}
+
+// ========== 29. SMART VIDEO INTERCOM ==========
+export async function initiateIntercomCall(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id;
+    const { visitor_name, visitor_phone, host_name } = req.body;
+
+    if (!visitor_name || !host_name) {
+      return res.status(400).json({ success: false, error: 'Visitor name and Host student name are required.' });
+    }
+
+    // Lookup Host User ID by name
+    const { data: hosts } = await supabaseAdmin
+      .from('users')
+      .select('id, name')
+      .ilike('name', `%${host_name}%`)
+      .eq('institution_id', institutionId)
+      .limit(1);
+
+    const host = hosts?.[0];
+    if (!host) {
+      return res.status(404).json({ success: false, error: 'Host user profile not found.' });
+    }
+
+    const { data: call, error } = await supabaseAdmin
+      .from('intercom_calls')
+      .insert({
+        institution_id: institutionId,
+        visitor_name,
+        visitor_phone,
+        host_id: host.id,
+        answered: false,
+        approved: false,
+        recording_url: `https://storage.supabase.co/intercom/calls/recording_${Date.now()}.mp3`
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    // Pushes video call ring to student's mobile namespace
+    try {
+      const { gateNs } = require('../server');
+      if (gateNs) {
+        gateNs.to(`host_${host.id}`).emit('intercom:incoming_call', {
+          call_id: call.id,
+          visitor_name,
+          recording_url: call.recording_url
+        });
+      }
+    } catch {
+      // Ignore Socket.io issues in dev
+    }
+
+    return res.status(201).json({ success: true, call });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error initiating intercom call.' });
+  }
+}
+
+export async function respondToIntercomCall(req: Request, res: Response) {
+  try {
+    const { id } = req.params; // call_id
+    const { approved } = req.body; // approved = true / false
+
+    const { data: call, error } = await supabaseAdmin
+      .from('intercom_calls')
+      .update({
+        answered: true,
+        approved: !!approved
+      })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error || !call) {
+      return res.status(404).json({ success: false, error: 'Call record not found.' });
+    }
+
+    // Notify gate kiosk that visitor is approved/denied
+    try {
+      const { gateNs } = require('../server');
+      if (gateNs) {
+        gateNs.emit('intercom:call_resolved', {
+          call_id: id,
+          approved: !!approved
+        });
+      }
+    } catch {
+      // Ignore Socket.io issues in dev
+    }
+
+    return res.status(200).json({ success: true, call });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error answering call.' });
+  }
+}
+
+// ========== 30. CONTRACTOR & VENDOR MANAGEMENT ==========
+export async function createContractorProfile(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id;
+    const { company_name, contact, work_types } = req.body;
+
+    if (!company_name) {
+      return res.status(400).json({ success: false, error: 'Company name is required.' });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('contractor_profiles')
+      .insert({
+        institution_id: institutionId,
+        company_name,
+        contact,
+        work_types: work_types || [],
+        is_approved: true
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    return res.status(201).json({ success: true, contractor: data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error registering contractor.' });
+  }
+}
+
+export async function getContractorProfiles(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('contractor_profiles')
+      .select('*')
+      .eq('institution_id', req.user?.institution_id);
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    return res.status(200).json({ success: true, contractors: data || [] });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error.' });
+  }
+}
+
+export async function requestWorkPermit(req: Request, res: Response) {
+  try {
+    const { contractor_id, date, scope, location } = req.body;
+
+    if (!contractor_id || !scope || !location) {
+      return res.status(400).json({ success: false, error: 'Contractor ID, scope, and location are required.' });
+    }
+
+    const qrStr = `PERMIT-${contractor_id}-${date || new Date().toISOString().split('T')[0]}`;
+    const entryPassQr = `https://api.iris365.in/api/v1/gate/parking/qr-pass?code=${encodeURIComponent(qrStr)}`;
+
+    const { data, error } = await supabaseAdmin
+      .from('work_permits')
+      .insert({
+        contractor_id,
+        date: date || new Date().toISOString().split('T')[0],
+        scope,
+        location,
+        entry_pass_qr: entryPassQr,
+        status: 'approved',
+        approved_by: req.user?.id
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    return res.status(201).json({ success: true, permit: data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error issuing work permit.' });
+  }
+}
+
+export async function signoffWorkPermit(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+
+    const { data, error } = await supabaseAdmin
+      .from('work_permits')
+      .update({ status: 'completed' })
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error || !data) {
+      return res.status(500).json({ success: false, error: error?.message || 'Permit not found.' });
+    }
+
+    return res.status(200).json({ success: true, permit: data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error.' });
+  }
+}
+
+export async function getWorkPermits(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('work_permits')
+      .select('*, contractor_profiles(*)');
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    // Verify suspcious contractors (>5 visits a month)
+    const monthlyPermits = data || [];
+    const countMap: any = {};
+    monthlyPermits.forEach(p => {
+      countMap[p.contractor_id] = (countMap[p.contractor_id] || 0) + 1;
+    });
+
+    const flaggedContractorIds = Object.keys(countMap).filter(id => countMap[id] > 5);
+
+    const mappedPermits = monthlyPermits.map(p => ({
+      ...p,
+      flagged_suspicious: flaggedContractorIds.includes(p.contractor_id)
+    }));
+
+    return res.status(200).json({ success: true, permits: mappedPermits });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error.' });
+  }
+}
+
+// ========== 31. PARKING INTEGRATION ==========
+export async function logParkingEntry(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id;
+    const { vehicle_number, slot_number, pass_qr } = req.body;
+
+    if (!vehicle_number) {
+      return res.status(400).json({ success: false, error: 'Vehicle number is required.' });
+    }
+
+    // Lookup Student associated to vehicle if exists
+    const { data: vehicles } = await supabaseAdmin
+      .from('registered_vehicles')
+      .select('student_id')
+      .eq('vehicle_number', vehicle_number)
+      .limit(1);
+
+    const studentId = vehicles?.[0]?.student_id || null;
+
+    const { data, error } = await supabaseAdmin
+      .from('parking_logs')
+      .insert({
+        institution_id: institutionId,
+        vehicle_number,
+        student_id: studentId,
+        in_time: new Date().toISOString(),
+        slot_number: slot_number || 'A-01',
+        pass_qr: pass_qr || 'MOCK_QR_PASS'
+      })
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    // Manually mark matching parking slot as occupied in parking_slots table
+    if (slot_number) {
+      await supabaseAdmin
+        .from('parking_slots')
+        .update({
+          is_occupied: true,
+          vehicle_number,
+          last_occupied_at: new Date().toISOString()
+        })
+        .eq('slot_number', slot_number)
+        .eq('institution_id', institutionId);
+    }
+
+    return res.status(201).json({ success: true, message: 'Parking barrier entry check-in approved.', log: data });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error logging parking entry.' });
+  }
+}
+
+export async function logParkingExit(req: Request, res: Response) {
+  try {
+    const institutionId = req.user?.institution_id;
+    const { vehicle_number, slot_number } = req.body;
+
+    if (!vehicle_number) {
+      return res.status(400).json({ success: false, error: 'Vehicle number is required.' });
+    }
+
+    // Find active parking log
+    const { data: activeLog } = await supabaseAdmin
+      .from('parking_logs')
+      .select('id')
+      .eq('vehicle_number', vehicle_number)
+      .is('out_time', null)
+      .order('in_time', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (activeLog) {
+      await supabaseAdmin
+        .from('parking_logs')
+        .update({ out_time: new Date().toISOString() })
+        .eq('id', activeLog.id);
+    }
+
+    // Vacate parking slot in parking_slots table
+    if (slot_number) {
+      await supabaseAdmin
+        .from('parking_slots')
+        .update({
+          is_occupied: false,
+          vehicle_number: null,
+          last_occupied_at: null
+        })
+        .eq('slot_number', slot_number)
+        .eq('institution_id', institutionId);
+    }
+
+    return res.status(200).json({ success: true, message: 'Parking barrier check-out vacate logged.' });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error logging parking exit.' });
+  }
+}
+

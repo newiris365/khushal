@@ -725,3 +725,281 @@ cron.schedule('0 21 * * 0', async () => {
 });
 
 logger.info('IRIS 365 Hostel, Library, Transit, Gate, Director & AI Concierge Cron jobs initialised.');
+
+/**
+ * MODULE 1: Campus Core Background Cron Schedulers
+ */
+
+// 17. Daily Health Score Compiler (Runs at 11 PM: '0 23 * * *')
+cron.schedule('0 23 * * *', async () => {
+  logger.info('Running Daily Health Score Compiler cron job...');
+  try {
+    const { data: students } = await supabaseAdmin.from('students').select('id');
+    if (!students || students.length === 0) return;
+
+    for (const student of students) {
+      // Fetch parameters
+      const { data: attendanceLogs } = await supabaseAdmin
+        .from('attendance')
+        .select('status')
+        .eq('student_id', student.id);
+      
+      const totalAtt = attendanceLogs?.length || 0;
+      const presentAtt = attendanceLogs?.filter(l => l.status === 'present' || l.status === 'late').length || 0;
+      const attPct = totalAtt > 0 ? (presentAtt / totalAtt) * 100 : 85; 
+
+      const { data: payments } = await supabaseAdmin
+        .from('fee_payments')
+        .select('amount_paid, status, fee_structures(amount)')
+        .eq('student_id', student.id);
+      
+      let outstanding = 0;
+      if (payments) {
+        payments.forEach((p: any) => {
+          if (p.status !== 'Completed' && p.status !== 'paid') {
+            outstanding += Number(p.fee_structures?.amount || 0);
+          }
+        });
+      }
+
+      const { data: results } = await supabaseAdmin
+        .from('exam_results')
+        .select('marks_obtained, max_marks')
+        .eq('student_id', student.id);
+      
+      let totalMarks = 0;
+      let obtained = 0;
+      if (results) {
+        results.forEach(r => {
+          totalMarks += Number(r.max_marks);
+          obtained += Number(r.marks_obtained);
+        });
+      }
+      const academicPct = totalMarks > 0 ? (obtained / totalMarks) * 100 : 78;
+
+      const engagementScore = 75; // Mock engagement
+
+      const attendance_score = Math.round(attPct);
+      const fee_score = Math.max(0, 100 - Math.round(outstanding / 1000));
+      const academic_score = Math.round(academicPct);
+
+      const score = Math.round(
+        (attendance_score * 0.3) +
+        (fee_score * 0.25) +
+        (academic_score * 0.25) +
+        (engagementScore * 0.2)
+      );
+
+      let risk_level = 'low';
+      if (score < 40) risk_level = 'critical';
+      else if (score < 60) risk_level = 'high';
+      else if (score < 80) risk_level = 'medium';
+
+      const factors = {
+        low_attendance: attPct < 75,
+        outstanding_fees: outstanding > 10000,
+        low_grades: academicPct < 60
+      };
+
+      let recommendation = 'Student parameters are normal. Keep tracking updates.';
+      if (risk_level === 'critical') {
+        recommendation = `Critical risk detected. Low attendance (${attendance_score}%) and exams (${academic_score}%) require counselor contact.`;
+      } else if (risk_level === 'high') {
+        recommendation = `High risk alert. Financial balance dues checklist remains outstanding. Recommend parent notification.`;
+      } else if (risk_level === 'medium') {
+        recommendation = `Medium risk. Student exhibits moderate classroom absence patterns. Recommend monitoring index.`;
+      }
+
+      // Save to database
+      await supabaseAdmin.from('student_health_scores').insert({
+        student_id: student.id,
+        score,
+        risk_level,
+        attendance_score,
+        fee_score,
+        academic_score,
+        engagement_score: engagementScore,
+        factors,
+        recommendation
+      });
+
+      // Update student record
+      await supabaseAdmin.from('students').update({ health_score: score, risk_level }).eq('id', student.id);
+    }
+    logger.info('Daily Health Score Compiler completed.');
+  } catch (err: any) {
+    logger.error('Error in Daily Health Score Compiler cron: ' + err.message);
+  }
+});
+
+// 18. Daily Parent Report Compiler (Runs at 8 PM: '0 20 * * *')
+cron.schedule('0 20 * * *', async () => {
+  logger.info('Running Daily Parent Report Compiler cron job...');
+  try {
+    const { data: students } = await supabaseAdmin.from('students').select('id');
+    if (!students || students.length === 0) return;
+
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    for (const student of students) {
+      // Fetch attendance status
+      const { data: attendanceData } = await supabaseAdmin
+        .from('attendance')
+        .select('status')
+        .eq('student_id', student.id)
+        .eq('date', todayStr)
+        .maybeSingle();
+
+      const attendance_status = attendanceData?.status || 'absent';
+
+      // Fetch gate logs
+      const { data: gateLogs } = await supabaseAdmin
+        .from('gate_logs')
+        .select('direction, timestamp')
+        .eq('student_id', student.id)
+        .gte('timestamp', `${todayStr}T00:00:00Z`)
+        .order('timestamp', { ascending: true });
+
+      const gate_in = gateLogs?.find(l => l.direction === 'in' || l.direction === 'IN')?.timestamp || null;
+      const gate_out = gateLogs?.find(l => l.direction === 'out' || l.direction === 'OUT')?.timestamp || null;
+
+      // Fetch canteen spend today
+      const { data: orders } = await supabaseAdmin
+        .from('canteen_orders')
+        .select('total_amount, items')
+        .eq('student_id', student.id)
+        .eq('status', 'Completed')
+        .gte('created_at', `${todayStr}T00:00:00Z`);
+
+      let canteen_spend = 0;
+      let meals_today = '';
+      if (orders && orders.length > 0) {
+        canteen_spend = orders.reduce((acc, o) => acc + Number(o.total_amount), 0);
+        meals_today = orders.flatMap(o => o.items || []).join(', ');
+      }
+
+      // Fetch notices published today
+      const { count: notices_count } = await supabaseAdmin
+        .from('notices')
+        .select('id', { count: 'exact', head: true })
+        .eq('status', 'published')
+        .gte('published_at', `${todayStr}T00:00:00Z`);
+
+      await supabaseAdmin.from('parent_daily_reports').upsert({
+        student_id: student.id,
+        date: todayStr,
+        attendance_status,
+        current_period: 'Completed',
+        meals_today: meals_today || 'None',
+        gate_in_time: gate_in,
+        gate_out_time: gate_out,
+        canteen_spend,
+        notices_count: notices_count || 0
+      }, { onConflict: 'student_id, date' });
+    }
+    logger.info('Daily Parent Report Compiler completed.');
+  } catch (err: any) {
+    logger.error('Error in Daily Parent Report Compiler cron: ' + err.message);
+  }
+});
+
+// 19. Auto Alerts (Daily at 6 PM: '0 18 * * *')
+cron.schedule('0 18 * * *', async () => {
+  logger.info('Running Daily 6 PM Parent Alerts & Warnings cron job...');
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Find absent students today
+    const { data: absentees } = await supabaseAdmin
+      .from('attendance')
+      .select('student_id, students(name, guardian_phone)')
+      .eq('date', todayStr)
+      .eq('status', 'absent');
+
+    for (const record of absentees || []) {
+      const studentName = (record.students as any)?.name;
+      const phone = (record.students as any)?.guardian_phone;
+      if (phone) {
+        logger.info(`[SMS/WhatsApp Simulator] Sent Alert to ${phone}: Dear Parent, your child ${studentName} was marked ABSENT today (${todayStr}). Please contact the coordinator for any concerns.`);
+      }
+    }
+
+    // Find students below 75% attendance overall
+    const { data: students } = await supabaseAdmin.from('students').select('id, name, guardian_phone');
+    for (const student of students || []) {
+      const { data: logs } = await supabaseAdmin
+        .from('attendance')
+        .select('status')
+        .eq('student_id', student.id);
+
+      const total = logs?.length || 0;
+      if (total >= 5) {
+        const present = logs?.filter(l => l.status === 'present' || l.status === 'late').length || 0;
+        const attPct = (present / total) * 100;
+
+        if (attPct < 75 && student.guardian_phone) {
+          logger.warn(`[SMS/WhatsApp Simulator] Sent Warning to ${student.guardian_phone}: Urgent! Your child ${student.name}'s attendance is ${attPct.toFixed(1)}%, falling below the mandatory 75% threshold. Please ensure regular attendance.`);
+        }
+      }
+    }
+
+    // Find fraud logs from today
+    const { data: fraudLogs } = await supabaseAdmin
+      .from('attendance_fraud_logs')
+      .select('student_id, fraud_type, students(name, guardian_phone)')
+      .gte('flagged_at', `${todayStr}T00:00:00Z`);
+
+    for (const log of fraudLogs || []) {
+      const studentName = (log.students as any)?.name;
+      const phone = (log.students as any)?.guardian_phone;
+      if (phone) {
+        logger.error(`[SMS/WhatsApp Simulator] SECURITY WARNING to ${phone}: A validation mismatch (${log.fraud_type}) was recorded for ${studentName} during today's attendance verification session.`);
+      }
+    }
+  } catch (err: any) {
+    logger.error('Error in Parent Alerts & Warnings cron: ' + err.message);
+  }
+});
+
+logger.info('IRIS 365 Campus Core background cron jobs initialised.');
+
+/**
+ * MODULE 2: Canteen System Background Cron Schedulers
+ */
+
+// 20. Daily 10 AM Hygiene Checklist check (Runs at 10 AM: '0 10 * * *')
+cron.schedule('0 10 * * *', async () => {
+  logger.info('Running Daily Canteen Hygiene Checklist Auditor...');
+  try {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabaseAdmin
+      .from('hygiene_checklists')
+      .select('id')
+      .eq('date', todayStr)
+      .maybeSingle();
+
+    if (error) throw error;
+
+    if (!data) {
+      logger.warn('[ALERT: CANTEEN COMPLIANCE] Missed Daily Checklist! No hygiene checklist submitted by canteen vendor for today yet.');
+    }
+  } catch (err: any) {
+    logger.error('Error auditing canteen hygiene checklist: ' + err.message);
+  }
+});
+
+// 21. FSSAI Licence Document Expiration Tracker (Runs at 10:30 AM: '30 10 * * *')
+cron.schedule('30 10 * * *', async () => {
+  logger.info('Running Canteen FSSAI Document Expiry Audit...');
+  try {
+    const thirtyDaysFromNow = new Date();
+    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
+    const targetDateStr = thirtyDaysFromNow.toISOString().split('T')[0];
+    logger.info(`Auditing FSSAI license parameters. Mock renewal validation check scheduled for expiry matching: ${targetDateStr}.`);
+  } catch (err: any) {
+    logger.error('Error running canteen document expiry checker: ' + err.message);
+  }
+});
+
+logger.info('IRIS 365 Canteen Module background cron jobs initialised.');
+

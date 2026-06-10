@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   BrainCircuit, MessageSquare, Sliders, AlertTriangle, 
   HelpCircle, BarChart2, Radio, Activity, RefreshCw, 
-  ShieldAlert, ChevronRight, UserCheck
+  ShieldAlert, ChevronRight, UserCheck, Smile, Bell
 } from 'lucide-react';
 import { apiGet } from '../../../lib/api';
 import Link from 'next/link';
@@ -167,6 +167,28 @@ export default function AdminAIDashboard() {
               <p className="text-xs text-[#C4B5FD]/70">Review hourly query volumes, top intent modules classification, and ratings distributions charts.</p>
               <Link href="/admin/ai/analytics" className="text-xs font-bold text-[#A78BFA] group-hover:text-white transition-all inline-flex items-center gap-1 pt-2">
                 Open Charts <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-[#1E1B4B]/80 to-[#13102A]/80 border border-[#8B5CF6]/20 p-6 rounded-3xl shadow-xl flex justify-between items-center group hover:border-[#8B5CF6]/40 transition-all">
+            <div className="space-y-2">
+              <Smile className="w-8 h-8 text-[#A78BFA]" />
+              <h2 className="text-base font-bold text-white">Sentiment Analytics</h2>
+              <p className="text-xs text-[#C4B5FD]/70">Monitor daily campus mood trends, keywords list, negative categories, and auto-routed issues.</p>
+              <Link href="/ai/sentiment" className="text-xs font-bold text-[#A78BFA] group-hover:text-white transition-all inline-flex items-center gap-1 pt-2">
+                Open Sentiment Dashboard <ChevronRight className="w-4 h-4" />
+              </Link>
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-[#1E1B4B]/80 to-[#13102A]/80 border border-[#8B5CF6]/20 p-6 rounded-3xl shadow-xl flex justify-between items-center group hover:border-[#8B5CF6]/40 transition-all">
+            <div className="space-y-2">
+              <Bell className="w-8 h-8 text-[#A78BFA]" />
+              <h2 className="text-base font-bold text-white">Smart Nudges Panel</h2>
+              <p className="text-xs text-[#C4B5FD]/70">Dispatch contextual batch alerts to students, check logs, and inspect student preference options.</p>
+              <Link href="/ai/nudges" className="text-xs font-bold text-[#A78BFA] group-hover:text-white transition-all inline-flex items-center gap-1 pt-2">
+                Open Nudges Console <ChevronRight className="w-4 h-4" />
               </Link>
             </div>
           </div>

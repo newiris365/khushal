@@ -13,7 +13,7 @@ const studentLinks: SidebarLink[] = [
   { label: 'Fee Ledger', href: '/student/fees', icon: CreditCard },
   { label: 'Canteen', href: '/student/canteen', icon: ShoppingBag },
   { label: 'Hostel', href: '/hostel', icon: Home },
-  { label: 'Library', href: '/library', icon: BookOpen },
+  { label: 'Library', href: '/student/library/research', icon: BookOpen },
   { label: 'Events', href: '/student/events', icon: Award },
   { label: 'FitZone', href: '/student/gym', icon: Dumbbell },
   { label: 'Transit GPS', href: '/transit', icon: Bus },

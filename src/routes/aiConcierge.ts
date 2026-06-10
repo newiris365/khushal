@@ -19,7 +19,22 @@ import {
   generateDigestCron,
   getEscalations,
   resolveEscalation,
-  getConciergeStats
+  getConciergeStats,
+  // Module 10 additions
+  voiceTranscribe,
+  voiceSynthesize,
+  getVoiceHistory,
+  getNudges,
+  markNudgeRead,
+  markNudgeActioned,
+  sendNudgeBatch,
+  getNudgePreferences,
+  updateNudgePreferences,
+  generateStudyPlan,
+  getStudyPlan,
+  updateStudyPlanProgress,
+  analyzeSentiment,
+  getSentimentTrends
 } from '../controllers/aiConcierge';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -61,4 +76,35 @@ router.post('/digest/generate/:userId', authMiddleware, requireRole(['Admin', 'S
 // ========== ADMIN STATS ==========
 router.get('/concierge/stats', authMiddleware, requireRole(['Admin', 'SuperAdmin']), getConciergeStats);
 
+// ============================================================
+// MODULE 10: VOICE INTERFACE
+// ============================================================
+router.post('/voice/transcribe', authMiddleware, voiceTranscribe);
+router.post('/voice/synthesize', authMiddleware, voiceSynthesize);
+router.get('/voice/history', authMiddleware, getVoiceHistory);
+
+// ============================================================
+// MODULE 10: PROACTIVE AI NUDGES
+// ============================================================
+router.get('/nudges', authMiddleware, getNudges);
+router.put('/nudges/:id/read', authMiddleware, markNudgeRead);
+router.put('/nudges/:id/action', authMiddleware, markNudgeActioned);
+router.post('/nudges/send', authMiddleware, requireRole(['Admin', 'SuperAdmin']), sendNudgeBatch);
+router.get('/nudges/preferences', authMiddleware, getNudgePreferences);
+router.put('/nudges/preferences', authMiddleware, updateNudgePreferences);
+
+// ============================================================
+// MODULE 10: AI STUDY PLANNER
+// ============================================================
+router.post('/study-plan/generate', authMiddleware, generateStudyPlan);
+router.get('/study-plan/:studentId', authMiddleware, getStudyPlan);
+router.put('/study-plan/:id/progress', authMiddleware, updateStudyPlanProgress);
+
+// ============================================================
+// MODULE 10: SENTIMENT ANALYSIS
+// ============================================================
+router.post('/sentiment/analyze', authMiddleware, requireRole(['Admin', 'SuperAdmin']), analyzeSentiment);
+router.get('/sentiment/trends', authMiddleware, requireRole(['Admin', 'SuperAdmin']), getSentimentTrends);
+
 export default router;
+

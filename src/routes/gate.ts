@@ -26,7 +26,22 @@ import {
   getDailyReport,
   getPersonMovement,
   getIncidentsReport,
-  getOccupantsInside
+  getOccupantsInside,
+  cctvAnomalyWebhook,
+  triggerEmergencyMuster,
+  respondToMuster,
+  getLiveMuster,
+  resolveMuster,
+  getMusterReport,
+  initiateIntercomCall,
+  respondToIntercomCall,
+  createContractorProfile,
+  getContractorProfiles,
+  requestWorkPermit,
+  signoffWorkPermit,
+  getWorkPermits,
+  logParkingEntry,
+  logParkingExit
 } from '../controllers/gate';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -73,5 +88,30 @@ router.post('/blacklist/check', requireRole(['Security', 'Admin', 'SuperAdmin'])
 router.get('/reports/daily', requireRole(['Admin', 'SuperAdmin']), getDailyReport);
 router.get('/reports/movement/:personId', requireRole(['Admin', 'SuperAdmin']), getPersonMovement);
 router.get('/reports/incidents', requireRole(['Admin', 'SuperAdmin']), getIncidentsReport);
+
+// --- AI THREAT DETECTION (CCTV) (NEW) ---
+router.post('/cctv/webhook', cctvAnomalyWebhook);
+
+// --- EMERGENCY MUSTERING SYSTEM (NEW) ---
+router.post('/muster/trigger', requireRole(['Security', 'Admin', 'SuperAdmin']), triggerEmergencyMuster);
+router.post('/muster/respond', respondToMuster);
+router.get('/muster/live/:id', requireRole(['Security', 'Admin', 'SuperAdmin']), getLiveMuster);
+router.post('/muster/resolve/:id', requireRole(['Security', 'Admin', 'SuperAdmin']), resolveMuster);
+router.get('/muster/report/:id', requireRole(['Security', 'Admin', 'SuperAdmin']), getMusterReport);
+
+// --- SMART VIDEO INTERCOM (NEW) ---
+router.post('/intercom/call', initiateIntercomCall);
+router.post('/intercom/respond/:id', respondToIntercomCall);
+
+// --- CONTRACTOR & VENDOR (NEW) ---
+router.post('/contractors/profile', requireRole(['Security', 'Admin', 'SuperAdmin']), createContractorProfile);
+router.get('/contractors/profiles', requireRole(['Security', 'Admin', 'SuperAdmin']), getContractorProfiles);
+router.post('/contractors/permit', requireRole(['Security', 'Admin', 'SuperAdmin']), requestWorkPermit);
+router.post('/contractors/permit/signoff/:id', requireRole(['Security', 'Admin', 'SuperAdmin']), signoffWorkPermit);
+router.get('/contractors/permits', requireRole(['Security', 'Admin', 'SuperAdmin']), getWorkPermits);
+
+// --- PARKING MANAGEMENT INTEGRATION (NEW) ---
+router.post('/parking/entry', requireRole(['Security', 'Admin', 'SuperAdmin']), logParkingEntry);
+router.post('/parking/exit', requireRole(['Security', 'Admin', 'SuperAdmin']), logParkingExit);
 
 export default router;

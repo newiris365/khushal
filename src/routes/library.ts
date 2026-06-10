@@ -27,7 +27,27 @@ import {
   payFine,
   getRecommendations,
   getOverviewStats,
-  getReports
+  getReports,
+  aiResearchTopic,
+  aiSummarizeBook,
+  aiCompareBooks,
+  setReadingGoal,
+  logReadingProgress,
+  getReadingStats,
+  getGoalsLeaderboard,
+  listNewspapers,
+  createNewspaper,
+  bookmarkNewspaperArticle,
+  createBookClub,
+  listBookClubs,
+  joinBookClub,
+  listClubDiscussions,
+  postClubDiscussion,
+  respondToDiscussion,
+  issueClubCertificate,
+  createInterlibraryRequest,
+  listInterlibraryRequests,
+  updateInterlibraryRequestStatus
 } from '../controllers/library';
 
 const router = Router();
@@ -77,5 +97,35 @@ router.get('/recommendations/:studentId', getRecommendations);
 // --- ANALYTICS ---
 router.get('/analytics/overview', requireRole(['Staff', 'Admin', 'SuperAdmin', 'Librarian']), getOverviewStats);
 router.get('/analytics/reports', requireRole(['Staff', 'Admin', 'SuperAdmin', 'Librarian']), getReports);
+
+// --- AI RESEARCH ASSISTANT ---
+router.post('/ai/research', aiResearchTopic);
+router.post('/ai/summarize', aiSummarizeBook);
+router.post('/ai/compare', aiCompareBooks);
+
+// --- READING PROGRESS & GOALS ---
+router.post('/goals', setReadingGoal);
+router.post('/goals/progress', logReadingProgress);
+router.get('/goals/stats/:studentId', getReadingStats);
+router.get('/goals/leaderboard', getGoalsLeaderboard);
+
+// --- DIGITAL NEWSPAPER PORTAL ---
+router.get('/newspapers', listNewspapers);
+router.post('/newspapers', requireRole(['Staff', 'Admin', 'SuperAdmin', 'Librarian']), createNewspaper);
+router.post('/newspapers/:id/bookmark', bookmarkNewspaperArticle);
+
+// --- BOOK CLUB MODULE ---
+router.post('/book-clubs', requireRole(['Staff', 'Admin', 'SuperAdmin', 'Librarian']), createBookClub);
+router.get('/book-clubs', listBookClubs);
+router.post('/book-clubs/:id/join', joinBookClub);
+router.get('/book-clubs/:id/discussions', listClubDiscussions);
+router.post('/book-clubs/:id/discussion', postClubDiscussion);
+router.post('/book-clubs/discussions/respond', respondToDiscussion);
+router.post('/book-clubs/:id/certificate', issueClubCertificate);
+
+// --- INTERLIBRARY LOANS ---
+router.post('/interlibrary/request', createInterlibraryRequest);
+router.get('/interlibrary/requests', listInterlibraryRequests);
+router.put('/interlibrary/requests/:id/status', requireRole(['Staff', 'Admin', 'SuperAdmin', 'Librarian']), updateInterlibraryRequestStatus);
 
 export default router;

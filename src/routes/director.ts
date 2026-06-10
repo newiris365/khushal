@@ -22,7 +22,18 @@ import {
   generateReportOnDemand,
   downloadReportPDF,
   getReportsSchedule,
-  getStudentFullProfile
+  getStudentFullProfile,
+  getGoals,
+  createOrUpdateGoal,
+  getGoalsHistory,
+  getBoardReports,
+  generateBoardReport,
+  emailBoardReport,
+  getFinancialPL,
+  saveFinancialCosts,
+  getCompetitorBenchmarks,
+  getStudentJourneyScores,
+  assignCounselorIntervention
 } from '../controllers/director';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -66,5 +77,26 @@ router.get('/reports/schedule', getReportsSchedule);
 
 // --- GLOBAL CROSS SEARCH DETAILS ---
 router.get('/student/:id/full-profile', getStudentFullProfile);
+
+// --- MODULE 9: STRATEGIC GOALS ---
+router.get('/goals', getGoals);
+router.post('/goals', createOrUpdateGoal);
+router.get('/goals/history', getGoalsHistory);
+
+// --- MODULE 9: BOARD REPORTS (PowerPoint) ---
+router.get('/board-reports', getBoardReports);
+router.post('/board-reports/generate', generateBoardReport);
+router.post('/board-reports/email', emailBoardReport);
+
+// --- MODULE 9: REAL-TIME FINANCIAL P&L ---
+router.get('/financial-pl', getFinancialPL);
+router.post('/financial-pl/costs', saveFinancialCosts);
+
+// --- MODULE 9: COMPETITOR BENCHMARKS ---
+router.get('/competitor-benchmarks', getCompetitorBenchmarks);
+
+// --- MODULE 9: STUDENT JOURNEY ANALYTICS ---
+router.get('/student-journey', getStudentJourneyScores);
+router.post('/student-journey/intervention', assignCounselorIntervention);
 
 export default router;

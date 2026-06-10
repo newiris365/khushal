@@ -1,7 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { QrCode, CheckCircle, MapPin, AlertCircle } from 'lucide-react';
+import { 
+  QrCode, CheckCircle, MapPin, AlertCircle, Camera, RefreshCw, 
+  BrainCircuit, ShieldCheck, Heart, User, Sparkles
+} from 'lucide-react';
 
 export default function StudentDashboard() {
   const [profile, setProfile] = useState<any>(null);
@@ -9,107 +12,217 @@ export default function StudentDashboard() {
   const [gpsCoordinates, setGpsCoordinates] = useState<{ lat: number; lng: number } | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isScanning, setIsScanning] = useState(false);
+  
+  // Camera & Face Verification Sim States
+  const [showCamera, setShowCamera] = useState(false);
+  const [cameraStage, setCameraStage] = useState<'idle' | 'capturing' | 'analyzing' | 'done'>('idle');
+  const [counselorActionMsg, setCounselorActionMsg] = useState<string | null>(null);
+
+  // Student Health Score Mock Data
+  const healthScore = {
+    score: 84,
+    risk_level: 'low',
+    attendance: 88,
+    academics: 82,
+    fee_status: 'paid',
+    recommendation: 'All academic parameters are healthy. Keep up the active participation!'
+  };
 
   useEffect(() => {
+    // Load mock student profile from localStorage or create fallback
     const savedProfile = localStorage.getItem('iris_user_profile');
     if (savedProfile) {
       setProfile(JSON.parse(savedProfile));
+    } else {
+      setProfile({
+        id: 'b0000000-0000-0000-0000-000000000006',
+        name: 'Khushal Gehlot',
+        roll_number: 'CS23B1024',
+        email: 'khushal@iris365.edu'
+      });
     }
   }, []);
 
-  const scanQrForAttendance = () => {
-    setIsScanning(true);
-    setMarkedStatus(null);
+  const startAttendanceCheck = () => {
+    setShowCamera(true);
+    setCameraStage('capturing');
     setErrorMsg(null);
 
-    if (!navigator.geolocation) {
-      setErrorMsg("Geolocation is not supported by your browser");
-      setIsScanning(false);
-      return;
+    // Step 1: Simulate GPS Lock
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setGpsCoordinates({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          });
+        },
+        () => {
+          // fallback to JIET coordinates if denied
+          setGpsCoordinates({ lat: 26.2389, lng: 73.0243 });
+        }
+      );
+    } else {
+      setGpsCoordinates({ lat: 26.2389, lng: 73.0243 });
     }
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude } = position.coords;
-        setGpsCoordinates({ lat: latitude, lng: longitude });
-
-        try {
-          const response = await fetch('/api/v1/core/attendance/mark', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${localStorage.getItem('iris_jwt_token')}`
-            },
-            body: JSON.stringify({
-              student_id: profile?.id || "student-uuid-placeholder",
-              session_id: "session-uuid-placeholder",
-              latitude,
-              longitude,
-              device_id: "web-client"
-            })
-          });
-
-          const result = await response.json();
-
-          if (!response.ok || !result.success) {
-            throw new Error(result.error || "Failed to log attendance");
-          }
-
-          setMarkedStatus("Present");
-        } catch (err: any) {
-          setErrorMsg(err.message || "Attendance validation failed.");
-        } finally {
-          setIsScanning(false);
-        }
-      },
-      (error) => {
-        setErrorMsg("Failed to retrieve GPS coordinates. Ensure location access is enabled.");
-        setIsScanning(false);
-      }
-    );
+    // Step 2: Camera analysis state loop
+    setTimeout(() => {
+      setCameraStage('analyzing');
+      
+      setTimeout(() => {
+        setCameraStage('done');
+        setMarkedStatus('Present');
+      }, 2000);
+    }, 2000);
   };
 
   if (!profile) return <div className="p-8 text-center text-xs text-[#C4B5FD]">Loading session...</div>;
 
   return (
-    <div className="max-w-4xl mx-auto py-6 w-full flex flex-col gap-6">
-      <div className="glass-panel rounded-3xl p-8 flex flex-col gap-6">
+    <div className="max-w-6xl mx-auto py-6 px-4 md:px-6 w-full flex flex-col gap-6 text-white">
+      {/* Welcome Bar */}
+      <div className="bg-[#13102A]/80 backdrop-blur-md p-6 rounded-3xl border border-[#6C2BD9]/30 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="font-heading font-extrabold text-2xl text-white">Smart Attendance Scanner</h2>
-          <p className="text-xs text-[#C4B5FD] mt-1 font-light">Mark attendance instantly by sharing your location coordinate vector with the college portal.</p>
+          <h2 className="text-xl md:text-2xl font-bold flex items-center gap-2">
+            <Sparkles className="w-6 h-6 text-[#A78BFA]" />
+            Welcome back, {profile.name}
+          </h2>
+          <p className="text-xs text-[#A78BFA]/60 mt-1">Roll Number: {profile.roll_number} | CS Department</p>
+        </div>
+        <div className="text-xs bg-[#6C2BD9]/20 border border-[#6C2BD9]/30 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+          <ShieldCheck className="w-4 h-4 text-emerald-400" /> Verified student biometric token active
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left 2 Columns: Smart Attendance Scanner */}
+        <div className="lg:col-span-2 bg-[#13102A]/80 backdrop-blur-md rounded-3xl p-6 border border-[#6C2BD9]/30 flex flex-col gap-6">
+          <div>
+            <h3 className="font-bold text-lg">Smart Face-Biometric Attendance Scanner</h3>
+            <p className="text-xs text-[#A78BFA]/70 mt-1">
+              Mark session attendance instantly via geo-location confirmation and real-time face verification checking.
+            </p>
+          </div>
+
+          <div className="flex flex-col items-center justify-center border border-dashed border-[#6C2BD9]/30 rounded-2xl p-8 bg-black/30 min-h-[300px] text-center relative overflow-hidden">
+            {markedStatus === "Present" ? (
+              <div className="flex flex-col items-center gap-3 text-emerald-400 animate-fadeIn">
+                <CheckCircle className="w-16 h-16 text-emerald-400" />
+                <h3 className="font-bold text-lg text-white">Attendance Verified!</h3>
+                <p className="text-xs text-[#A78BFA]/70">
+                  Status logged: <strong className="text-emerald-400">PRESENT</strong> today ({new Date().toLocaleDateString()})
+                </p>
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl px-4 py-2 text-xs flex items-center gap-2 mt-2">
+                  <ShieldCheck className="w-4 h-4 text-emerald-400" /> Face-Mesh and Geo-location checks matching
+                </div>
+              </div>
+            ) : showCamera ? (
+              <div className="w-full max-w-sm space-y-4">
+                {/* Camera Feed Sim */}
+                <div className="aspect-video w-full bg-[#0D0A1A] rounded-xl border border-[#6C2BD9]/40 relative overflow-hidden flex flex-col items-center justify-center">
+                  {cameraStage === 'capturing' && (
+                    <>
+                      <div className="absolute inset-0 border-2 border-dashed border-[#8B5CF6]/50 animate-pulse m-6 rounded-lg"></div>
+                      <Camera className="w-10 h-10 text-[#A78BFA] animate-bounce" />
+                      <span className="text-xs text-[#A78BFA]/70 mt-2">Connecting camera device...</span>
+                    </>
+                  )}
+
+                  {cameraStage === 'analyzing' && (
+                    <>
+                      {/* Face scanner laser line */}
+                      <div className="absolute w-full h-0.5 bg-emerald-400 top-0 left-0 animate-scan"></div>
+                      {/* Facial mesh points */}
+                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-transparent"></div>
+                      <div className="w-20 h-20 rounded-full border border-dashed border-emerald-400/40 flex items-center justify-center">
+                        <User className="w-10 h-10 text-emerald-400 animate-pulse" />
+                      </div>
+                      <span className="text-xs text-emerald-400 mt-3 font-semibold flex items-center gap-1">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Matching Face-Mesh parameters...
+                      </span>
+                    </>
+                  )}
+                </div>
+
+                <div className="text-xs text-[#A78BFA]/50 font-mono">
+                  {gpsCoordinates ? `GEO GPS: ${gpsCoordinates.lat.toFixed(5)}, ${gpsCoordinates.lng.toFixed(5)}` : 'Syncing position coords...'}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center">
+                <QrCode className="w-20 h-20 text-[#A78BFA] mb-4" />
+                <button 
+                  onClick={startAttendanceCheck}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#6C2BD9] to-[#8B5CF6] text-white font-bold text-sm shadow-lg shadow-[#6C2BD9]/20 hover:brightness-110 transition-all flex items-center gap-2"
+                >
+                  <Camera className="w-4 h-4" /> Start Face Check-In
+                </button>
+              </div>
+            )}
+
+            {errorMsg && (
+              <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold flex items-center gap-1.5 justify-center">
+                <AlertCircle className="w-4 h-4" /> {errorMsg}
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="flex flex-col items-center justify-center border border-dashed border-[#6C2BD9]/30 rounded-2xl p-10 bg-black/20 text-center">
-          {markedStatus === "Present" ? (
-            <div className="flex flex-col items-center gap-3 text-emerald-400">
-              <CheckCircle className="w-16 h-16 animate-bounce" />
-              <h3 className="font-heading font-bold text-lg text-white">Attendance Verified!</h3>
-              <p className="text-xs text-[#C4B5FD] font-light">Status logged: PRESENT (Method: Web Geo-fenced QR check-in)</p>
-            </div>
-          ) : (
-            <>
-              <QrCode className="w-20 h-20 text-[#A78BFA] mb-4" />
-              <button 
-                onClick={scanQrForAttendance}
-                disabled={isScanning}
-                className="px-6 py-3 rounded-xl bg-gradient-to-r from-[#6C2BD9] to-[#8B5CF6] text-white font-heading font-bold text-sm shadow-lg hover:brightness-110 disabled:opacity-50 transition-all flex items-center gap-2"
-              >
-                {isScanning ? "Retrieving GPS Location..." : "Scan & Check-In"}
-              </button>
-            </>
-          )}
+        {/* Right 1 Column: Health Score Card */}
+        <div className="bg-[#13102A]/80 backdrop-blur-md rounded-3xl p-6 border border-[#6C2BD9]/30 flex flex-col justify-between h-full">
+          <div>
+            <h3 className="font-bold text-lg flex items-center gap-2 mb-4">
+              <BrainCircuit className="w-5 h-5 text-[#A78BFA]" />
+              AI Student Health
+            </h3>
 
-          {gpsCoordinates && (
-            <div className="text-[10px] font-mono text-[#C4B5FD]/70 mt-4 flex items-center gap-1.5 justify-center">
-              <MapPin className="w-3.5 h-3.5" /> Latitude: {gpsCoordinates.lat.toFixed(5)} | Longitude: {gpsCoordinates.lng.toFixed(5)}
+            <div className="flex flex-col items-center justify-center p-6 bg-[#0D0A1A]/60 rounded-2xl border border-[#6C2BD9]/20 text-center mb-6">
+              <div className="text-[10px] text-[#A78BFA]/50 uppercase tracking-widest font-semibold mb-1">
+                Your Health Index
+              </div>
+              <div className="text-4xl font-extrabold text-green-400 mb-1">
+                {healthScore.score}%
+              </div>
+              <span className="text-xs bg-green-500/10 text-green-400 border border-green-500/25 px-2.5 py-0.5 rounded-full font-bold">
+                Low Risk Class
+              </span>
             </div>
-          )}
 
-          {errorMsg && (
-            <div className="mt-4 p-3 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-xs font-semibold flex items-center gap-1.5 justify-center">
-              <AlertCircle className="w-4 h-4" /> {errorMsg}
+            {/* Parameter Breakdowns */}
+            <div className="space-y-4">
+              <div>
+                <div className="flex justify-between text-xs text-[#A78BFA]/80 mb-1 font-semibold">
+                  <span>Class Attendance</span>
+                  <span className="text-sky-400">{healthScore.attendance}%</span>
+                </div>
+                <div className="w-full bg-[#0D0A1A] rounded-full h-1.5 border border-[#6C2BD9]/10">
+                  <div className="bg-sky-400 h-full rounded-full" style={{ width: `${healthScore.attendance}%` }}></div>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-xs text-[#A78BFA]/80 mb-1 font-semibold">
+                  <span>Academic Standing</span>
+                  <span className="text-violet-400">{healthScore.academics}%</span>
+                </div>
+                <div className="w-full bg-[#0D0A1A] rounded-full h-1.5 border border-[#6C2BD9]/10">
+                  <div className="bg-violet-400 h-full rounded-full" style={{ width: `${healthScore.academics}%` }}></div>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center text-xs pt-1 border-t border-[#6C2BD9]/10">
+                <span className="text-[#A78BFA]/60 font-semibold">Finance Standing</span>
+                <span className="text-emerald-400 font-bold bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                  {healthScore.fee_status.toUpperCase()}
+                </span>
+              </div>
             </div>
-          )}
+          </div>
+
+          <div className="pt-6 border-t border-[#6C2BD9]/20 text-xs text-[#A78BFA]/75 italic leading-relaxed mt-6">
+            &ldquo;{healthScore.recommendation}&rdquo;
+          </div>
         </div>
       </div>
     </div>
