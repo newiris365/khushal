@@ -1009,7 +1009,7 @@ export async function analyzeRouteOptimizer(req: Request, res: Response) {
           route_name: "Mandore Outskirts Route",
           type: "new_stop",
           description: "Detected a cluster of 15 new students residing in Housing Colony Sector 9. A new stop is recommended at the Main Security Arch.",
-          time_savings_min: -5, -- Negative indicates adding route time, but increases occupancy efficiency
+          time_savings_min: -5, // Negative indicates adding route time, but increases occupancy efficiency
           stop_name: "Housing Sector 9 Arch",
           location_details: "Near Paota Circle Hub highway entrance"
         },
@@ -1161,7 +1161,7 @@ export async function getPredictiveArrival(req: Request, res: Response) {
     return res.status(200).json({
       success: true,
       predicted_delay_minutes: predictedDelay,
-      confidence_score: 91, -- % confidence
+      confidence_score: 91, // % confidence
       delay_factors: delayFactors,
       accuracy_trend: accuracyTrend
     });
@@ -1214,8 +1214,8 @@ export async function triggerSos(req: Request, res: Response) {
       : 'GPS lat: 26.2912, lng: 73.0156 (Updated 1 minute ago)';
 
     const incidentDetails = {
-      parent_name: req.user?.name || 'Emergency Contact',
-      phone: req.user?.phone || '+91 98290 12347',
+      parent_name: (req.user as any)?.name || 'Emergency Contact',
+      phone: (req.user as any)?.phone || '+91 98290 12347',
       last_rfid_location: lastRfidLocation,
       last_gps_location: lastGpsLocation,
       driver_broadcasted: true
@@ -1466,7 +1466,7 @@ export async function registerVehicle(req: Request, res: Response) {
       .from('registered_vehicles')
       .insert({
         institution_id: institutionId,
-        student_id: student_id || req.user?.student_id || 'c0000000-0000-0000-0000-000000000006',
+        student_id: student_id || (req.user as any)?.student_id || 'c0000000-0000-0000-0000-000000000006',
         vehicle_number,
         type,
         color,

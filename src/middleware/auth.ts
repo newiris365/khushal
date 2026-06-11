@@ -1,7 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'iris-365-super-secret-key-for-jwt-signing';
+const fallbackSecret = 'iris-365-super-secret-key-for-jwt-signing';
+if (process.env.NODE_ENV === 'production' && (!process.env.JWT_SECRET || process.env.JWT_SECRET === fallbackSecret)) {
+  throw new Error('PRODUCTION SECURITY VIOLATION: A strong JWT_SECRET environment variable is required in production mode!');
+}
+const JWT_SECRET = process.env.JWT_SECRET || fallbackSecret;
 
 import crypto from 'crypto';
 
@@ -25,7 +29,16 @@ declare global {
 function getFingerprintHash(req: Request): string {
   const userAgent = req.headers['user-agent'] || 'unknown';
   const ip = req.ip || req.socket.remoteAddress || 'unknown';
-  const ipSegment = ip.split('.').slice(0, 3).join('.'); // Use IP subnet to tolerate mobile network switching
+  
+  let ipSegment = ip;
+  if (ip.includes(':')) {
+    // IPv6 address: mask to /64 subnet (first 4 groups) to tolerate tower switching
+    ipSegment = ip.split(':').slice(0, 4).join(':');
+  } else if (ip.includes('.')) {
+    // IPv4 address: mask to /24 subnet (first 3 groups)
+    ipSegment = ip.split('.').slice(0, 3).join('.');
+  }
+  
   const raw = `${userAgent}-${ipSegment}`;
   return crypto.createHash('sha256').update(raw).digest('hex');
 }

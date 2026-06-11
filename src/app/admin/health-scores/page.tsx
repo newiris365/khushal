@@ -53,7 +53,7 @@ export default function HealthScoresPage() {
     try {
       setLoading(true);
       // Call parent endpoint we added, otherwise it will return sandbox fallback
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('iris_jwt_token') || '';
       const res = await fetch('/api/v1/core/students/health-scores/report', {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -73,7 +73,7 @@ export default function HealthScoresPage() {
   const handleRecalculate = async () => {
     try {
       setRecalculating(true);
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('iris_jwt_token') || '';
       const res = await fetch('/api/v1/core/students/health-scores/calculate', {
         method: 'POST',
         headers: {

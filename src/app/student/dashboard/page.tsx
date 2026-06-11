@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { 
   QrCode, CheckCircle, MapPin, AlertCircle, Camera, RefreshCw, 
   BrainCircuit, ShieldCheck, Heart, User, Sparkles
@@ -18,6 +18,9 @@ export default function StudentDashboard() {
   const [cameraStage, setCameraStage] = useState<'idle' | 'capturing' | 'analyzing' | 'done'>('idle');
   const [counselorActionMsg, setCounselorActionMsg] = useState<string | null>(null);
 
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
   // Student Health Score Mock Data
   const healthScore = {
     score: 84,
@@ -32,7 +35,17 @@ export default function StudentDashboard() {
     // Load mock student profile from localStorage or create fallback
     const savedProfile = localStorage.getItem('iris_user_profile');
     if (savedProfile) {
-      setProfile(JSON.parse(savedProfile));
+      try {
+        setProfile(JSON.parse(savedProfile));
+      } catch (e) {
+        console.error('Failed to parse saved profile:', e);
+        setProfile({
+          id: 'b0000000-0000-0000-0000-000000000006',
+          name: 'Khushal Gehlot',
+          roll_number: 'CS23B1024',
+          email: 'khushal@iris365.edu'
+        });
+      }
     } else {
       setProfile({
         id: 'b0000000-0000-0000-0000-000000000006',
@@ -41,14 +54,28 @@ export default function StudentDashboard() {
         email: 'khushal@iris365.edu'
       });
     }
+
+    // Cleanup camera stream on component unmount
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop());
+      }
+    };
   }, []);
 
-  const startAttendanceCheck = () => {
+  // Sync camera stream to HTML5 video element when DOM mounts
+  useEffect(() => {
+    if (cameraStage === 'analyzing' && videoRef.current && streamRef.current) {
+      videoRef.current.srcObject = streamRef.current;
+    }
+  }, [cameraStage]);
+
+  const startAttendanceCheck = async () => {
     setShowCamera(true);
     setCameraStage('capturing');
     setErrorMsg(null);
 
-    // Step 1: Simulate GPS Lock
+    // Step 1: Request Geolocation Coord Lock
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -66,15 +93,32 @@ export default function StudentDashboard() {
       setGpsCoordinates({ lat: 26.2389, lng: 73.0243 });
     }
 
-    // Step 2: Camera analysis state loop
-    setTimeout(() => {
-      setCameraStage('analyzing');
+    // Step 2: Request live camera webcam stream access
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: 640, height: 480 }
+      });
       
+      streamRef.current = stream;
+      setCameraStage('analyzing');
+
+      // Step 3: Run face-mesh matching animation loop, then complete
       setTimeout(() => {
+        // Shutdown webcam sensor
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
+          streamRef.current = null;
+        }
         setCameraStage('done');
         setMarkedStatus('Present');
-      }, 2000);
-    }, 2000);
+      }, 4500);
+
+    } catch (err: any) {
+      console.error('Camera initialization failed:', err);
+      setErrorMsg('Webcam access was denied or hardware not found. Please check browser permissions.');
+      setShowCamera(false);
+      setCameraStage('idle');
+    }
   };
 
   if (!profile) return <div className="p-8 text-center text-xs text-[#C4B5FD]">Loading session...</div>;
@@ -119,8 +163,18 @@ export default function StudentDashboard() {
               </div>
             ) : showCamera ? (
               <div className="w-full max-w-sm space-y-4">
-                {/* Camera Feed Sim */}
+                {/* Camera Feed */}
                 <div className="aspect-video w-full bg-[#0D0A1A] rounded-xl border border-[#6C2BD9]/40 relative overflow-hidden flex flex-col items-center justify-center">
+                  <video 
+                    ref={videoRef} 
+                    autoPlay 
+                    playsInline 
+                    muted 
+                    className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+                      cameraStage === 'analyzing' ? 'opacity-80' : 'opacity-0 pointer-events-none'
+                    }`}
+                  />
+
                   {cameraStage === 'capturing' && (
                     <>
                       <div className="absolute inset-0 border-2 border-dashed border-[#8B5CF6]/50 animate-pulse m-6 rounded-lg"></div>
@@ -132,13 +186,13 @@ export default function StudentDashboard() {
                   {cameraStage === 'analyzing' && (
                     <>
                       {/* Face scanner laser line */}
-                      <div className="absolute w-full h-0.5 bg-emerald-400 top-0 left-0 animate-scan"></div>
+                      <div className="absolute w-full h-0.5 bg-emerald-400 top-0 left-0 animate-scan z-10"></div>
                       {/* Facial mesh points */}
-                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-transparent"></div>
-                      <div className="w-20 h-20 rounded-full border border-dashed border-emerald-400/40 flex items-center justify-center">
+                      <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-transparent z-10"></div>
+                      <div className="w-20 h-20 rounded-full border border-dashed border-emerald-400/40 flex items-center justify-center z-10 bg-emerald-500/5">
                         <User className="w-10 h-10 text-emerald-400 animate-pulse" />
                       </div>
-                      <span className="text-xs text-emerald-400 mt-3 font-semibold flex items-center gap-1">
+                      <span className="text-xs text-emerald-400 mt-3 font-semibold flex items-center gap-1 z-10 bg-black/60 px-3 py-1 rounded-full border border-emerald-500/20 backdrop-blur-sm">
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Matching Face-Mesh parameters...
                       </span>
                     </>

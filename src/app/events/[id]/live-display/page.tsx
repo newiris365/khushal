@@ -205,7 +205,7 @@ export default function KioskLiveDisplayPage() {
         ))}
       </div>
 
-      <style jsx global>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @keyframes floatUp {
           0% {
             transform: translateY(0) scale(0.6);
@@ -220,7 +220,7 @@ export default function KioskLiveDisplayPage() {
             opacity: 0;
           }
         }
-      `}</style>
+      ` }} />
 
       {/* TOP HEADER */}
       <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 pb-6 border-b border-white/5 relative z-10">
@@ -322,7 +322,7 @@ export default function KioskLiveDisplayPage() {
           </div>
         </div>
 
-        <style jsx>{`
+        <style dangerouslySetInnerHTML={{ __html: `
           .animate-marquee {
             display: inline-block;
             white-space: nowrap;
@@ -332,7 +332,7 @@ export default function KioskLiveDisplayPage() {
             0% { transform: translate3d(0, 0, 0); }
             100% { transform: translate3d(-100%, 0, 0); }
           }
-        `}</style>
+        ` }} />
       </footer>
     </main>
   );

@@ -20,6 +20,11 @@ import aiConciergeRouter from './routes/aiConcierge';
 import libraryRouter from './routes/library';
 import gateRouter from './routes/gate';
 import parentRouter from './routes/parent';
+import admissionsRouter from './routes/admissions';
+import placementsRouter from './routes/placements';
+import obeRouter from './routes/obe';
+import naacRouter from './routes/naac';
+import hrRouter from './routes/hr';
 import { initGateHardware } from './services/gateHardware';
 
 dotenv.config();
@@ -176,6 +181,9 @@ setInterval(async () => {
 // Export io for use in controllers (e.g. transit GPS broadcast)
 export { io, transitNs, notificationsNs, canteenNs, gateNs, directorNs, eventsNs };
 
+// Trust upstream proxy (Nginx, AWS, Cloudflare, etc.) to correctly resolve req.ip
+app.set('trust proxy', 1);
+
 // Security and CORS middleware configuration
 app.use(helmet());
 app.use(cors({
@@ -225,6 +233,16 @@ app.use('/api/gate', gateRouter);
 app.use('/api/v1/gate', gateRouter);
 app.use('/api/parent', parentRouter);
 app.use('/api/v1/parent', parentRouter);
+app.use('/api/admissions', admissionsRouter);
+app.use('/api/v1/admissions', admissionsRouter);
+app.use('/api/placements', placementsRouter);
+app.use('/api/v1/placements', placementsRouter);
+app.use('/api/obe', obeRouter);
+app.use('/api/v1/obe', obeRouter);
+app.use('/api/naac', naacRouter);
+app.use('/api/v1/naac', naacRouter);
+app.use('/api/hr', hrRouter);
+app.use('/api/v1/hr', hrRouter);
 
 // Health Check endpoint
 app.get('/health', (req, res) => {

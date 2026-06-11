@@ -140,7 +140,7 @@ export default function QrOrderingPage() {
 
     try {
       setPlacing(true);
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('iris_jwt_token') || '';
       const orderItems = cart.map(c => ({
         menu_id: c.item.id,
         item_name: c.item.item_name,

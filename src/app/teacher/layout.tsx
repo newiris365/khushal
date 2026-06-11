@@ -1,13 +1,14 @@
 "use client";
 
 import PortalShell, { SidebarLink } from '../../components/PortalShell';
-import { CalendarDays, Dumbbell, FileText, ClipboardList } from 'lucide-react';
+import { CalendarDays, Dumbbell, FileText, ClipboardList, GraduationCap } from 'lucide-react';
 
 const teacherLinks: SidebarLink[] = [
   { label: 'Attendance', href: '/teacher/attendance', icon: CalendarDays },
   { label: 'Timetable', href: '/teacher/timetable', icon: ClipboardList },
   { label: 'Exam Results', href: '/teacher/results', icon: FileText },
   { label: 'Gym Bookings', href: '/teacher/gym', icon: Dumbbell },
+  { label: 'OBE Setup', href: '/teacher/obe/courses', icon: GraduationCap },
 ];
 
 export default function TeacherLayout({ children }: { children: React.ReactNode }) {

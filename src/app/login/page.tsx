@@ -113,6 +113,16 @@ const getMockProfile = (email: string, role: string) => {
         institution_name: 'SIN Institute of Engineering & Technology (SIET)',
         plan_tier: 'University'
       };
+    case 'SuperAdmin':
+      return {
+        id: 'b0000000-0000-0000-0000-000000000001',
+        name: 'Siddharth Singh (Sandbox)',
+        email: email,
+        role: 'SuperAdmin',
+        institution_id: 'a0000000-0000-0000-0000-000000000001',
+        institution_name: 'SIN Institute of Engineering & Technology (SIET)',
+        plan_tier: 'Enterprise'
+      };
     default:
       return {
         id: 'b0000000-0000-0000-0000-000000009999',
@@ -166,6 +176,7 @@ export default function LoginPage() {
       
       // Automatic client-side bypass for sandbox testing profiles on connection failure
       const sandboxEmails = [
+        'siddharth@sin.education',
         'khushal@gmail.com',
         'director@siet.edu.in',
         'admin@siet.edu.in',
@@ -178,7 +189,8 @@ export default function LoginPage() {
       ];
       if (sandboxEmails.includes(data.email)) {
         let role = 'Student';
-        if (data.email === 'director@siet.edu.in' || data.email === 'admin@siet.edu.in') role = 'Admin';
+        if (data.email === 'siddharth@sin.education') role = 'SuperAdmin';
+        else if (data.email === 'director@siet.edu.in' || data.email === 'admin@siet.edu.in') role = 'Admin';
         else if (data.email === 'warden@siet.edu.in') role = 'Warden';
         else if (data.email === 'security@siet.edu.in') role = 'Security';
         else if (data.email === 'rajesh.driver@siet.edu.in') role = 'Driver';
@@ -350,6 +362,16 @@ export default function LoginPage() {
           </div>
 
           <div className="grid grid-cols-2 gap-2 max-h-[160px] overflow-y-auto pr-1 scrollbar-thin">
+            <button
+              type="button"
+              onClick={() => handleQuickLogin('siddharth@sin.education', 'SuperAdmin')}
+              className="p-2.5 rounded-xl bg-violet-600/10 border border-violet-500/25 hover:border-violet-500 hover:bg-violet-600/20 transition-all text-left flex flex-col col-span-2"
+            >
+              <span className="text-[10px] font-bold text-violet-400 flex items-center gap-1">
+                <Shield className="w-3.5 h-3.5 text-violet-400" /> System SuperAdmin Portal
+              </span>
+              <span className="text-[8px] text-[#C4B5FD]/70 font-mono truncate w-full">siddharth@sin.education</span>
+            </button>
             <button
               type="button"
               onClick={() => handleQuickLogin('khushal@gmail.com', 'Student')}

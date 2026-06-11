@@ -79,7 +79,7 @@ export default function OrderTrackingPage() {
 
   const fetchOrder = async () => {
     try {
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('iris_jwt_token') || '';
       const res = await fetch(`/api/canteen/orders/track/${orderId}`, {
         headers: {
           'Authorization': `Bearer ${token}`

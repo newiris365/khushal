@@ -53,7 +53,7 @@ export default function VoiceChatPage() {
 
   const fetchVoiceHistory = async () => {
     try {
-      const token = localStorage.getItem('iris_token') || 'demo';
+      const token = localStorage.getItem('iris_jwt_token') || 'demo';
       const res = await fetch(`${API}/ai/voice/history`, {
         headers: { Authorization: `Bearer ${token}` }
       });
@@ -131,7 +131,7 @@ export default function VoiceChatPage() {
     setLoading(true);
 
     try {
-      const token = localStorage.getItem('iris_token') || 'demo';
+      const token = localStorage.getItem('iris_jwt_token') || 'demo';
       const res = await fetch(`${API}/ai/voice/transcribe`, {
         method: 'POST',
         headers: {
@@ -493,7 +493,7 @@ export default function VoiceChatPage() {
         </p>
       </div>
 
-      <style jsx>{`
+      <style dangerouslySetInnerHTML={{ __html: `
         @keyframes pulse {
           0%, 100% { transform: scale(1); }
           50% { transform: scale(1.08); }
@@ -507,7 +507,7 @@ export default function VoiceChatPage() {
           40% { content: '..'; }
           60%, 100% { content: '...'; }
         }
-      `}</style>
+      ` }} />
     </div>
   );
 }

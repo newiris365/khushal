@@ -59,7 +59,7 @@ export default function TeacherMessagesPage() {
   const fetchThreadMessages = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('iris_jwt_token') || '';
       const res = await fetch(`/api/v1/parent/messages/teacher_id_01`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -80,7 +80,7 @@ export default function TeacherMessagesPage() {
     if (!inputText.trim()) return;
     try {
       setSending(true);
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('iris_jwt_token') || '';
       const res = await fetch('/api/v1/parent/messages', {
         method: 'POST',
         headers: {

@@ -686,34 +686,54 @@ END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Select Institutions
+DROP POLICY IF EXISTS select_institutions ON institutions;
 CREATE POLICY select_institutions ON institutions
     FOR SELECT USING (
         id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin'
     );
 
+DROP POLICY IF EXISTS all_superadmin_institutions ON institutions;
 CREATE POLICY all_superadmin_institutions ON institutions
     FOR ALL USING (
         get_auth_user_role() = 'SuperAdmin'
     );
 
 -- Generic Tenant Isolation Policies
+DROP POLICY IF EXISTS tenant_users_policy ON users;
 CREATE POLICY tenant_users_policy ON users FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_departments_policy ON departments;
 CREATE POLICY tenant_departments_policy ON departments FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_students_policy ON students;
 CREATE POLICY tenant_students_policy ON students FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_staff_policy ON staff;
 CREATE POLICY tenant_staff_policy ON staff FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_attendance_policy ON attendance;
 CREATE POLICY tenant_attendance_policy ON attendance FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_attendance_sessions_policy ON attendance_sessions;
 CREATE POLICY tenant_attendance_sessions_policy ON attendance_sessions FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_timetable_policy ON timetable;
 CREATE POLICY tenant_timetable_policy ON timetable FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_fee_structures_policy ON fee_structures;
 CREATE POLICY tenant_fee_structures_policy ON fee_structures FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_fee_payments_policy ON fee_payments;
 CREATE POLICY tenant_fee_payments_policy ON fee_payments FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_canteen_menus_policy ON canteen_menus;
 CREATE POLICY tenant_canteen_menus_policy ON canteen_menus FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_canteen_orders_policy ON canteen_orders;
 CREATE POLICY tenant_canteen_orders_policy ON canteen_orders FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_hostel_rooms_policy ON hostel_rooms;
 CREATE POLICY tenant_hostel_rooms_policy ON hostel_rooms FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_books_policy ON books;
 CREATE POLICY tenant_books_policy ON books FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_book_issues_policy ON book_issues;
 CREATE POLICY tenant_book_issues_policy ON book_issues FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_events_policy ON events;
 CREATE POLICY tenant_events_policy ON events FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_bus_routes_policy ON bus_routes;
 CREATE POLICY tenant_bus_routes_policy ON bus_routes FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_buses_policy ON buses;
 CREATE POLICY tenant_buses_policy ON buses FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+DROP POLICY IF EXISTS tenant_notifications_policy ON notifications;
 CREATE POLICY tenant_notifications_policy ON notifications FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
 
 -- ==========================================================
@@ -721,7 +741,7 @@ CREATE POLICY tenant_notifications_policy ON notifications FOR ALL USING (instit
 -- ==========================================================
 
 -- Hostel Allocations Hardened Policy
-DROP POLICY IF EXISTS tenant_hostel_allocations_policy ON hostel_allocations;
+DROP POLICY IF EXISTS hostel_allocations_security_policy ON hostel_allocations;
 CREATE POLICY hostel_allocations_security_policy ON hostel_allocations
     FOR ALL TO authenticated
     USING (
@@ -744,7 +764,7 @@ CREATE POLICY hostel_allocations_security_policy ON hostel_allocations
     );
 
 -- Hostel Complaints Hardened Policy
-DROP POLICY IF EXISTS tenant_hostel_complaints_policy ON hostel_complaints;
+DROP POLICY IF EXISTS hostel_complaints_security_policy ON hostel_complaints;
 CREATE POLICY hostel_complaints_security_policy ON hostel_complaints
     FOR ALL TO authenticated
     USING (
@@ -770,7 +790,7 @@ CREATE POLICY hostel_complaints_security_policy ON hostel_complaints
     );
 
 -- Gate Logs Hardened Policy
-DROP POLICY IF EXISTS tenant_gate_logs_policy ON gate_logs;
+DROP POLICY IF EXISTS gate_logs_security_policy ON gate_logs;
 CREATE POLICY gate_logs_security_policy ON gate_logs
     FOR ALL TO authenticated
     USING (
@@ -1207,3 +1227,1463 @@ INSERT INTO gate_logs (institution_id, person_id, person_type, entry_type, in_ti
 INSERT INTO notifications (institution_id, user_id, title, body, type, is_read) VALUES
 ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000006', 'Hostel Gate Pass Approved', 'Your gate pass for visiting local market on Saturday has been approved by the Warden.', 'Info', FALSE),
 ('a0000000-0000-0000-0000-000000000001', 'b0000000-0000-0000-0000-000000000006', 'Library Fine Pending', 'You have an overdue library book "The C Programming Language" which has accrued standard fines of 5 INR/day.', 'Alert', FALSE);
+
+
+-- ============================================================
+-- MODULE 11: IRIS Admissions
+-- Branded Admission Cycles, Multi-Step Applications, Academic
+-- Audits, Auto-Merit calculations, Offer letters, and CRM Leads.
+-- ============================================================
+
+-- 1. CREATE admission_cycles TABLE
+CREATE TABLE IF NOT EXISTS admission_cycles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  academic_year TEXT NOT NULL,
+  start_date DATE,
+  end_date DATE,
+  status TEXT CHECK (status IN (
+    'upcoming','open','closed','processing','completed'
+  )) DEFAULT 'upcoming',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 2. CREATE programs TABLE
+CREATE TABLE IF NOT EXISTS programs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  code TEXT NOT NULL,
+  degree_type TEXT,
+  duration_years INTEGER,
+  total_seats INTEGER,
+  reserved_seats JSONB DEFAULT '{}'::jsonb,
+  eligibility_criteria JSONB DEFAULT '{}'::jsonb,
+  application_fee DECIMAL DEFAULT 0,
+  is_active BOOLEAN DEFAULT true
+);
+
+-- 3. CREATE applicants TABLE
+CREATE TABLE IF NOT EXISTS applicants (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  cycle_id UUID REFERENCES admission_cycles(id) ON DELETE SET NULL,
+  application_number TEXT UNIQUE NOT NULL,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  dob DATE,
+  gender TEXT,
+  category TEXT,
+  domicile_state TEXT,
+  photo_url TEXT,
+  aadhar_number TEXT,
+  address JSONB DEFAULT '{}'::jsonb,
+  guardian_name TEXT,
+  guardian_phone TEXT,
+  guardian_relation TEXT,
+  status TEXT CHECK (status IN (
+    'draft','submitted','under_review','shortlisted',
+    'merit_listed','waitlisted','offered','admitted',
+    'rejected','withdrawn'
+  )) DEFAULT 'draft',
+  merit_score DECIMAL DEFAULT 0.0,
+  ai_score DECIMAL DEFAULT 0.0,
+  rank_overall INTEGER,
+  rank_category INTEGER,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  submitted_at TIMESTAMPTZ,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 4. CREATE applicant_programs TABLE
+CREATE TABLE IF NOT EXISTS applicant_programs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  applicant_id UUID REFERENCES applicants(id) ON DELETE CASCADE,
+  program_id UUID REFERENCES programs(id) ON DELETE CASCADE,
+  preference_order INTEGER,
+  status TEXT DEFAULT 'pending',
+  allocated BOOLEAN DEFAULT false
+);
+
+-- 5. CREATE academic_records TABLE
+CREATE TABLE IF NOT EXISTS academic_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  applicant_id UUID REFERENCES applicants(id) ON DELETE CASCADE,
+  level TEXT NOT NULL, -- '10th', '12th', 'graduation'
+  board_university TEXT,
+  year_of_passing INTEGER,
+  percentage DECIMAL,
+  cgpa DECIMAL,
+  subjects JSONB DEFAULT '[]'::jsonb,
+  marksheet_url TEXT,
+  certificate_url TEXT,
+  is_verified BOOLEAN DEFAULT false,
+  verification_notes TEXT
+);
+
+-- 6. CREATE entrance_scores TABLE
+CREATE TABLE IF NOT EXISTS entrance_scores (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  applicant_id UUID REFERENCES applicants(id) ON DELETE CASCADE,
+  exam_name TEXT NOT NULL,
+  roll_number TEXT,
+  score DECIMAL,
+  percentile DECIMAL,
+  rank INTEGER,
+  scorecard_url TEXT,
+  is_verified BOOLEAN DEFAULT false
+);
+
+-- 7. CREATE documents TABLE
+CREATE TABLE IF NOT EXISTS documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  applicant_id UUID REFERENCES applicants(id) ON DELETE CASCADE,
+  doc_type TEXT NOT NULL,
+  doc_url TEXT NOT NULL,
+  file_name TEXT,
+  file_size_kb INTEGER,
+  is_verified BOOLEAN DEFAULT false,
+  verified_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  verified_at TIMESTAMPTZ,
+  rejection_reason TEXT,
+  uploaded_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 8. CREATE merit_lists TABLE
+CREATE TABLE IF NOT EXISTS merit_lists (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  cycle_id UUID REFERENCES admission_cycles(id) ON DELETE CASCADE,
+  program_id UUID REFERENCES programs(id) ON DELETE CASCADE,
+  round_number INTEGER DEFAULT 1,
+  list_type TEXT CHECK (list_type IN ('merit','waitlist','spot')),
+  published_at TIMESTAMPTZ,
+  cutoff_score DECIMAL,
+  is_published BOOLEAN DEFAULT false
+);
+
+-- 9. CREATE merit_list_entries TABLE
+CREATE TABLE IF NOT EXISTS merit_list_entries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  merit_list_id UUID REFERENCES merit_lists(id) ON DELETE CASCADE,
+  applicant_id UUID REFERENCES applicants(id) ON DELETE CASCADE,
+  rank INTEGER,
+  category TEXT,
+  merit_score DECIMAL,
+  status TEXT DEFAULT 'listed', -- 'listed', 'offered', 'accepted', 'declined', 'expired'
+  offer_sent_at TIMESTAMPTZ,
+  offer_accepted_at TIMESTAMPTZ,
+  offer_expires_at TIMESTAMPTZ
+);
+
+-- 10. CREATE admission_offers TABLE
+CREATE TABLE IF NOT EXISTS admission_offers (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  applicant_id UUID REFERENCES applicants(id) ON DELETE CASCADE,
+  program_id UUID REFERENCES programs(id) ON DELETE CASCADE,
+  merit_list_id UUID REFERENCES merit_lists(id) ON DELETE SET NULL,
+  offer_letter_url TEXT,
+  offered_at TIMESTAMPTZ DEFAULT now(),
+  expires_at TIMESTAMPTZ,
+  status TEXT DEFAULT 'sent', -- 'sent', 'accepted', 'rejected', 'expired'
+  accepted_at TIMESTAMPTZ,
+  rejected_at TIMESTAMPTZ,
+  rejection_reason TEXT
+);
+
+-- 11. CREATE admission_fees TABLE
+CREATE TABLE IF NOT EXISTS admission_fees (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  applicant_id UUID REFERENCES applicants(id) ON DELETE CASCADE,
+  fee_type TEXT CHECK (fee_type IN ('application','confirmation','enrollment')),
+  amount DECIMAL NOT NULL,
+  razorpay_order_id TEXT,
+  transaction_id TEXT,
+  status TEXT DEFAULT 'pending', -- 'pending', 'paid', 'failed'
+  paid_at TIMESTAMPTZ,
+  receipt_url TEXT
+);
+
+-- 12. CREATE counseling_sessions TABLE
+CREATE TABLE IF NOT EXISTS counseling_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  cycle_id UUID REFERENCES admission_cycles(id) ON DELETE CASCADE,
+  round_number INTEGER,
+  scheduled_date DATE,
+  mode TEXT CHECK (mode IN ('online','offline','hybrid')),
+  venue TEXT,
+  meeting_link TEXT,
+  status TEXT DEFAULT 'scheduled' -- 'scheduled', 'completed', 'cancelled'
+);
+
+-- 13. CREATE counseling_slots TABLE
+CREATE TABLE IF NOT EXISTS counseling_slots (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID REFERENCES counseling_sessions(id) ON DELETE CASCADE,
+  applicant_id UUID REFERENCES applicants(id) ON DELETE CASCADE,
+  slot_time TIMESTAMPTZ,
+  officer_id UUID REFERENCES users(id) ON DELETE SET NULL,
+  status TEXT DEFAULT 'assigned', -- 'assigned', 'attended', 'no_show', 'rescheduled'
+  attended BOOLEAN DEFAULT false,
+  notes TEXT
+);
+
+-- 14. CREATE waitlist_movements TABLE
+CREATE TABLE IF NOT EXISTS waitlist_movements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  applicant_id UUID REFERENCES applicants(id) ON DELETE CASCADE,
+  program_id UUID REFERENCES programs(id) ON DELETE CASCADE,
+  from_position INTEGER,
+  to_position INTEGER,
+  reason TEXT,
+  moved_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 15. CREATE admission_analytics TABLE
+CREATE TABLE IF NOT EXISTS admission_analytics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  cycle_id UUID REFERENCES admission_cycles(id) ON DELETE CASCADE,
+  date DATE,
+  applications_received INTEGER DEFAULT 0,
+  applications_submitted INTEGER DEFAULT 0,
+  documents_pending INTEGER DEFAULT 0,
+  merit_listed INTEGER DEFAULT 0,
+  offers_sent INTEGER DEFAULT 0,
+  offers_accepted INTEGER DEFAULT 0,
+  seats_filled INTEGER DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 16. CREATE crm_leads TABLE
+CREATE TABLE IF NOT EXISTS crm_leads (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  name TEXT,
+  email TEXT,
+  phone TEXT,
+  source TEXT, -- 'website', 'social', 'event', 'walkin', 'referral'
+  program_interest TEXT,
+  status TEXT DEFAULT 'new', -- 'new', 'contacted', 'interested', 'applied', 'admitted', 'lost'
+  assigned_to UUID REFERENCES users(id) ON DELETE SET NULL,
+  notes TEXT,
+  last_contacted TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================================
+-- INDEXES FOR PERFORMANCE
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_adm_cycles_inst ON admission_cycles(institution_id);
+CREATE INDEX IF NOT EXISTS idx_adm_programs_inst ON programs(institution_id);
+CREATE INDEX IF NOT EXISTS idx_applicants_inst ON applicants(institution_id);
+CREATE INDEX IF NOT EXISTS idx_applicants_cycle ON applicants(cycle_id);
+CREATE INDEX IF NOT EXISTS idx_applicants_status ON applicants(status);
+CREATE INDEX IF NOT EXISTS idx_applicants_email ON applicants(email);
+CREATE INDEX IF NOT EXISTS idx_crm_leads_inst ON crm_leads(institution_id);
+CREATE INDEX IF NOT EXISTS idx_documents_applicant ON documents(applicant_id);
+
+-- ============================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- ============================================================
+ALTER TABLE applicants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE documents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE merit_lists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admission_offers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE admission_cycles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE programs ENABLE ROW LEVEL SECURITY;
+
+-- 1. APPLICANTS POLICIES
+DROP POLICY IF EXISTS "applicant_own_data" ON applicants;
+CREATE POLICY "applicant_own_data" ON applicants
+  FOR SELECT USING (
+    email = (SELECT email FROM users WHERE id = auth.uid())
+  );
+
+DROP POLICY IF EXISTS "admin_institution_applicants" ON applicants;
+CREATE POLICY "admin_institution_applicants" ON applicants
+  FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid())
+  );
+
+-- 2. DOCUMENTS POLICIES
+DROP POLICY IF EXISTS "applicant_own_documents" ON documents;
+CREATE POLICY "applicant_own_documents" ON documents
+  FOR ALL USING (
+    applicant_id IN (SELECT id FROM applicants WHERE email = (SELECT email FROM users WHERE id = auth.uid()))
+  );
+
+DROP POLICY IF EXISTS "admin_institution_documents" ON documents;
+CREATE POLICY "admin_institution_documents" ON documents
+  FOR ALL USING (
+    applicant_id IN (SELECT id FROM applicants WHERE institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()))
+  );
+
+-- 3. ADMISSION OFFERS POLICIES
+DROP POLICY IF EXISTS "applicant_own_offers" ON admission_offers;
+CREATE POLICY "applicant_own_offers" ON admission_offers
+  FOR SELECT USING (
+    applicant_id IN (SELECT id FROM applicants WHERE email = (SELECT email FROM users WHERE id = auth.uid()))
+  );
+
+DROP POLICY IF EXISTS "admin_institution_offers" ON admission_offers;
+CREATE POLICY "admin_institution_offers" ON admission_offers
+  FOR ALL USING (
+    applicant_id IN (SELECT id FROM applicants WHERE institution_id = (SELECT institution_id FROM users WHERE id = auth.uid()))
+  );
+
+-- 4. ADMISSION CYCLES POLICIES
+DROP POLICY IF EXISTS "tenant_isolation_admission_cycles" ON admission_cycles;
+CREATE POLICY "tenant_isolation_admission_cycles" ON admission_cycles
+  FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid())
+  );
+
+-- 5. PROGRAMS POLICIES
+DROP POLICY IF EXISTS "tenant_isolation_programs" ON programs;
+CREATE POLICY "tenant_isolation_programs" ON programs
+  FOR ALL USING (
+    institution_id = (SELECT institution_id FROM users WHERE id = auth.uid())
+  );
+
+-- ============================================================
+-- SEED DATA - ADMISSION CYCLES & PROGRAMS FOR DEMO
+-- ============================================================
+INSERT INTO admission_cycles (id, institution_id, name, academic_year, start_date, end_date, status) VALUES
+  ('c1111111-1111-1111-1111-111111111111', 'a0000000-0000-0000-0000-000000000001', 'Fall Admissions 2026', '2026-27', CURRENT_DATE - INTERVAL '10 days', CURRENT_DATE + INTERVAL '60 days', 'open')
+  ON CONFLICT DO NOTHING;
+
+INSERT INTO programs (id, institution_id, name, code, degree_type, duration_years, total_seats, reserved_seats, eligibility_criteria, application_fee) VALUES
+  ('a1111111-1111-1111-1111-111111111111', 'a0000000-0000-0000-0000-000000000001', 'Bachelor of Technology in Computer Science (B.Tech CSE)', 'BTECH-CSE', 'UG', 4, 120, '{"general": 60, "obc": 32, "sc": 18, "st": 10}', '{"min_12th_pc": 60.0, "required_subjects": ["Physics", "Mathematics"]}', 1000.00),
+  ('a1111111-1111-1111-1111-111111111112', 'a0000000-0000-0000-0000-000000000001', 'Bachelor of Technology in Artificial Intelligence (B.Tech AI-DS)', 'BTECH-AIDS', 'UG', 4, 60, '{"general": 30, "obc": 16, "sc": 9, "st": 5}', '{"min_12th_pc": 65.0, "required_subjects": ["Physics", "Mathematics"]}', 1200.00),
+  ('a1111111-1111-1111-1111-111111111113', 'a0000000-0000-0000-0000-000000000001', 'Master of Business Administration (MBA)', 'MBA-CORE', 'PG', 2, 60, '{"general": 30, "obc": 16, "sc": 9, "st": 5}', '{"min_grad_cgpa": 6.0}', 1500.00)
+  ON CONFLICT DO NOTHING;
+
+
+-- ============================================================
+-- MODULE 12: IRIS Placements
+-- Company CRM, Drives management, Student profile builder, AI
+-- interview checks, Offer tracking, and Alumni mentoring network.
+-- ============================================================
+
+-- 1. CREATE companies TABLE
+CREATE TABLE IF NOT EXISTS companies (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  logo_url TEXT,
+  website TEXT,
+  industry TEXT,
+  company_type TEXT CHECK (company_type IN (
+    'product','service','startup','mnc','psu','ngo'
+  )),
+  hr_name TEXT,
+  hr_email TEXT,
+  hr_phone TEXT,
+  linkedin_url TEXT,
+  address TEXT,
+  tier TEXT CHECK (tier IN ('dream','core','mass')),
+  last_visited DATE,
+  total_offers_given INTEGER DEFAULT 0,
+  relationship_status TEXT DEFAULT 'active',
+  notes TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 2. CREATE placement_drives TABLE
+CREATE TABLE IF NOT EXISTS placement_drives (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  job_description TEXT,
+  jd_url TEXT,
+  role TEXT NOT NULL,
+  department TEXT,
+  job_type TEXT CHECK (job_type IN (
+    'full_time','internship','ppo','contract'
+  )),
+  location TEXT[],
+  ctc_min DECIMAL,
+  ctc_max DECIMAL,
+  ctc_display TEXT,
+  stipend DECIMAL,
+  bond_years INTEGER DEFAULT 0,
+  eligibility_criteria JSONB DEFAULT '{}'::jsonb,
+  min_cgpa DECIMAL DEFAULT 0.0,
+  eligible_branches TEXT[],
+  eligible_batches TEXT[],
+  backlogs_allowed INTEGER DEFAULT 0,
+  application_deadline TIMESTAMPTZ,
+  drive_date DATE,
+  drive_mode TEXT CHECK (drive_mode IN ('online','offline','hybrid')),
+  venue TEXT,
+  meeting_link TEXT,
+  rounds JSONB DEFAULT '[]'::jsonb,
+  status TEXT CHECK (status IN (
+    'upcoming','open','closed','processing','completed'
+  )) DEFAULT 'upcoming',
+  max_applications INTEGER,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 3. CREATE student_profiles TABLE
+CREATE TABLE IF NOT EXISTS student_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+  resume_url TEXT,
+  resume_updated_at TIMESTAMPTZ,
+  cgpa DECIMAL DEFAULT 0.0,
+  active_backlogs INTEGER DEFAULT 0,
+  total_backlogs INTEGER DEFAULT 0,
+  skills TEXT[],
+  certifications JSONB DEFAULT '[]'::jsonb,
+  projects JSONB DEFAULT '[]'::jsonb,
+  internships JSONB DEFAULT '[]'::jsonb,
+  achievements TEXT[],
+  linkedin_url TEXT,
+  github_url TEXT,
+  portfolio_url TEXT,
+  is_placed BOOLEAN DEFAULT false,
+  placed_company_id UUID REFERENCES companies(id) ON DELETE SET NULL,
+  placed_ctc DECIMAL,
+  placed_role TEXT,
+  placed_at TIMESTAMPTZ,
+  placement_type TEXT,
+  opted_out BOOLEAN DEFAULT false,
+  opt_out_reason TEXT,
+  ai_resume_score DECIMAL DEFAULT 0.0,
+  ai_resume_feedback TEXT,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 4. CREATE drive_applications TABLE
+CREATE TABLE IF NOT EXISTS drive_applications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  drive_id UUID REFERENCES placement_drives(id) ON DELETE CASCADE,
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+  applied_at TIMESTAMPTZ DEFAULT now(),
+  resume_url TEXT,
+  cover_letter TEXT,
+  status TEXT CHECK (status IN (
+    'applied','shortlisted','test_scheduled','interview_scheduled',
+    'selected','offered','offer_accepted','offer_rejected',
+    'rejected','withdrawn'
+  )) DEFAULT 'applied',
+  current_round INTEGER DEFAULT 0,
+  rejection_reason TEXT,
+  feedback TEXT
+);
+
+-- 5. CREATE interview_rounds TABLE
+CREATE TABLE IF NOT EXISTS interview_rounds (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  application_id UUID REFERENCES drive_applications(id) ON DELETE CASCADE,
+  drive_id UUID REFERENCES placement_drives(id) ON DELETE CASCADE,
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+  round_number INTEGER,
+  round_type TEXT CHECK (round_type IN (
+    'aptitude','coding','technical','hr','gd','case_study','final'
+  )),
+  scheduled_at TIMESTAMPTZ,
+  venue TEXT,
+  meeting_link TEXT,
+  interviewer_name TEXT,
+  interviewer_email TEXT,
+  duration_minutes INTEGER,
+  result TEXT CHECK (result IN ('pass','fail','hold','no_show')),
+  score DECIMAL,
+  feedback TEXT,
+  status TEXT DEFAULT 'scheduled'
+);
+
+-- 6. CREATE offer_letters TABLE
+CREATE TABLE IF NOT EXISTS offer_letters (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  application_id UUID REFERENCES drive_applications(id) ON DELETE CASCADE,
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+  company_id UUID REFERENCES companies(id) ON DELETE CASCADE,
+  drive_id UUID REFERENCES placement_drives(id) ON DELETE CASCADE,
+  offer_number TEXT UNIQUE,
+  role TEXT,
+  ctc DECIMAL,
+  joining_date DATE,
+  location TEXT,
+  offer_letter_url TEXT,
+  company_offer_url TEXT,
+  status TEXT DEFAULT 'received',
+  accepted_at TIMESTAMPTZ,
+  declined_at TIMESTAMPTZ,
+  decline_reason TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 7. CREATE placement_stats TABLE
+CREATE TABLE IF NOT EXISTS placement_stats (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  academic_year TEXT NOT NULL,
+  batch TEXT,
+  branch TEXT,
+  total_eligible INTEGER DEFAULT 0,
+  total_registered INTEGER DEFAULT 0,
+  total_placed INTEGER DEFAULT 0,
+  total_companies INTEGER DEFAULT 0,
+  avg_ctc DECIMAL DEFAULT 0.0,
+  median_ctc DECIMAL DEFAULT 0.0,
+  highest_ctc DECIMAL DEFAULT 0.0,
+  lowest_ctc DECIMAL DEFAULT 0.0,
+  ppo_count INTEGER DEFAULT 0,
+  dream_offers INTEGER DEFAULT 0,
+  calculated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 8. CREATE mock_interviews TABLE
+CREATE TABLE IF NOT EXISTS mock_interviews (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+  interview_type TEXT,
+  questions JSONB DEFAULT '[]'::jsonb,
+  responses JSONB DEFAULT '[]'::jsonb,
+  ai_feedback TEXT,
+  score DECIMAL DEFAULT 0.0,
+  duration_minutes INTEGER,
+  conducted_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 9. CREATE alumni TABLE
+CREATE TABLE IF NOT EXISTS alumni (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  graduation_year INTEGER,
+  current_company TEXT,
+  "current_role" TEXT,
+  current_ctc DECIMAL,
+  location TEXT,
+  linkedin_url TEXT,
+  is_mentor BOOLEAN DEFAULT false,
+  mentoring_slots INTEGER DEFAULT 0,
+  achievements TEXT[],
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 10. CREATE alumni_mentorship TABLE
+CREATE TABLE IF NOT EXISTS alumni_mentorship (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  alumni_id UUID REFERENCES alumni(id) ON DELETE CASCADE,
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+  session_date TIMESTAMPTZ,
+  duration_minutes INTEGER,
+  topic TEXT,
+  feedback TEXT,
+  student_rating INTEGER,
+  status TEXT DEFAULT 'scheduled'
+);
+
+-- 11. CREATE placement_notifications TABLE
+CREATE TABLE IF NOT EXISTS placement_notifications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  drive_id UUID REFERENCES placement_drives(id) ON DELETE CASCADE,
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+  type TEXT,
+  message TEXT,
+  sent_via TEXT[],
+  sent_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================================
+-- PERFORMANCE INDEXES
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_companies_inst ON companies(institution_id);
+CREATE INDEX IF NOT EXISTS idx_drives_company ON placement_drives(company_id);
+CREATE INDEX IF NOT EXISTS idx_applications_drive ON drive_applications(drive_id);
+CREATE INDEX IF NOT EXISTS idx_applications_student ON drive_applications(student_id);
+CREATE INDEX IF NOT EXISTS idx_rounds_application ON interview_rounds(application_id);
+CREATE INDEX IF NOT EXISTS idx_offers_student ON offer_letters(student_id);
+CREATE INDEX IF NOT EXISTS idx_alumni_student ON alumni(student_id);
+
+-- ============================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- ============================================================
+ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
+ALTER TABLE placement_drives ENABLE ROW LEVEL SECURITY;
+ALTER TABLE student_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE drive_applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE interview_rounds ENABLE ROW LEVEL SECURITY;
+ALTER TABLE offer_letters ENABLE ROW LEVEL SECURITY;
+ALTER TABLE mock_interviews ENABLE ROW LEVEL SECURITY;
+ALTER TABLE alumni ENABLE ROW LEVEL SECURITY;
+ALTER TABLE alumni_mentorship ENABLE ROW LEVEL SECURITY;
+
+-- 1. COMPANIES POLICY
+DROP POLICY IF EXISTS "companies_tenant_access" ON companies;
+CREATE POLICY "companies_tenant_access" ON companies 
+  FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+
+-- 2. PLACEMENT DRIVES POLICY
+DROP POLICY IF EXISTS "drives_tenant_access" ON placement_drives;
+CREATE POLICY "drives_tenant_access" ON placement_drives 
+  FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+
+-- 3. STUDENT PROFILES POLICY
+DROP POLICY IF EXISTS "student_own_profile" ON student_profiles;
+CREATE POLICY "student_own_profile" ON student_profiles
+  FOR ALL USING (
+    student_id IN (
+      SELECT id FROM students WHERE user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "admin_all_profiles" ON student_profiles;
+CREATE POLICY "admin_all_profiles" ON student_profiles 
+  FOR ALL USING (get_auth_user_role() IN ('Admin', 'SuperAdmin', 'TPO'));
+
+-- 4. APPLICATIONS POLICY
+DROP POLICY IF EXISTS "student_own_applications" ON drive_applications;
+CREATE POLICY "student_own_applications" ON drive_applications
+  FOR ALL USING (
+    student_id IN (
+      SELECT id FROM students WHERE user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "admin_all_applications" ON drive_applications;
+CREATE POLICY "admin_all_applications" ON drive_applications 
+  FOR ALL USING (get_auth_user_role() IN ('Admin', 'SuperAdmin', 'TPO', 'Company HR'));
+
+-- 5. INTERVIEW ROUDS POLICY
+DROP POLICY IF EXISTS "student_own_rounds" ON interview_rounds;
+CREATE POLICY "student_own_rounds" ON interview_rounds
+  FOR SELECT USING (
+    student_id IN (
+      SELECT id FROM students WHERE user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "admin_all_rounds" ON interview_rounds;
+CREATE POLICY "admin_all_rounds" ON interview_rounds 
+  FOR ALL USING (get_auth_user_role() IN ('Admin', 'SuperAdmin', 'TPO', 'Company HR'));
+
+-- 6. OFFER LETTERS POLICY
+DROP POLICY IF EXISTS "student_own_offers" ON offer_letters;
+CREATE POLICY "student_own_offers" ON offer_letters
+  FOR ALL USING (
+    student_id IN (
+      SELECT id FROM students WHERE user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "admin_all_offers" ON offer_letters;
+CREATE POLICY "admin_all_offers" ON offer_letters 
+  FOR ALL USING (get_auth_user_role() IN ('Admin', 'SuperAdmin', 'TPO', 'Company HR'));
+
+-- 7. MOCK INTERVIEWS POLICY
+DROP POLICY IF EXISTS "student_own_mocks" ON mock_interviews;
+CREATE POLICY "student_own_mocks" ON mock_interviews
+  FOR ALL USING (
+    student_id IN (
+      SELECT id FROM students WHERE user_id = auth.uid()
+    )
+  );
+
+DROP POLICY IF EXISTS "admin_all_mocks" ON mock_interviews;
+CREATE POLICY "admin_all_mocks" ON mock_interviews 
+  FOR ALL USING (get_auth_user_role() IN ('Admin', 'SuperAdmin', 'TPO'));
+
+-- 8. ALUMNI POLICY
+DROP POLICY IF EXISTS "alumni_tenant_access" ON alumni;
+CREATE POLICY "alumni_tenant_access" ON alumni 
+  FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+
+-- 9. MENTORSHIP POLICY
+DROP POLICY IF EXISTS "mentorship_tenant_access" ON alumni_mentorship;
+CREATE POLICY "mentorship_tenant_access" ON alumni_mentorship 
+  FOR ALL USING (
+    alumni_id IN (SELECT id FROM alumni WHERE institution_id = get_auth_institution_id()) 
+    OR get_auth_user_role() = 'SuperAdmin'
+  );
+
+-- ============================================================
+-- SEED DATA
+-- ============================================================
+INSERT INTO companies (id, institution_id, name, logo_url, website, industry, company_type, hr_name, hr_email, hr_phone, tier, relationship_status) VALUES
+  ('c0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'Google India', 'https://images.unsplash.com/photo-1573804633927-bfcbcd909acd?w=120', 'https://google.com', 'Technology', 'mnc', 'Neha Sen', 'neha.sen@google.com', '+91 99881 23456', 'dream', 'active'),
+  ('c0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'Infosys', 'https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=120', 'https://infosys.com', 'IT Services', 'service', 'Rajesh K.', 'rajesh.k@infosys.com', '+91 94140 12891', 'mass', 'active'),
+  ('c0000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', 'ZS Associates', 'https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?w=120', 'https://zs.com', 'Consulting', 'product', 'Preeti Sharma', 'preeti.sharma@zs.com', '+91 99290 12347', 'core', 'active')
+  ON CONFLICT DO NOTHING;
+
+INSERT INTO placement_drives (id, institution_id, company_id, title, role, job_type, location, ctc_min, ctc_max, ctc_display, min_cgpa, eligible_branches, eligible_batches, status, application_deadline, drive_date) VALUES
+  ('d0000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000001', 'Google SWE Summer Drive 2026', 'Software Engineer (L3)', 'full_time', ARRAY['Bangalore', 'Hyderabad'], 32.0, 42.0, '32 - 42 LPA', 8.0, ARRAY['CSE', 'AIDS'], ARRAY['2026'], 'open', CURRENT_TIMESTAMP + INTERVAL '10 days', CURRENT_DATE + INTERVAL '15 days'),
+  ('d0000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000003', 'ZS Consulting Campus Hiring', 'Business Technology Analyst', 'full_time', ARRAY['Pune', 'Gurgaon'], 8.5, 12.0, '8.5 - 12 LPA', 7.0, ARRAY['CSE', 'AIDS', 'ECE'], ARRAY['2026'], 'open', CURRENT_TIMESTAMP + INTERVAL '5 days', CURRENT_DATE + INTERVAL '8 days')
+  ON CONFLICT DO NOTHING;
+
+
+-- ============================================================
+-- MODULE 13: IRIS OBE & NAAC
+-- Programs OBE, Courses, COs, POs, CO-PO mappings, CIE assessments, 
+-- Attainments logs, NAAC criteria checklists, SSR documents, and Faculty logs.
+-- ============================================================
+
+-- 1. CREATE programs_obe TABLE
+CREATE TABLE IF NOT EXISTS programs_obe (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+  program_id UUID REFERENCES programs(id) ON DELETE CASCADE,
+  program_name TEXT NOT NULL,
+  program_code TEXT,
+  degree_type TEXT,
+  duration_years INTEGER,
+  vision TEXT,
+  mission TEXT,
+  peos TEXT[],
+  psos TEXT[],
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 2. CREATE courses TABLE
+CREATE TABLE IF NOT EXISTS courses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  program_id UUID REFERENCES programs_obe(id) ON DELETE CASCADE,
+  department_id UUID REFERENCES departments(id) ON DELETE SET NULL,
+  course_code TEXT NOT NULL,
+  course_name TEXT NOT NULL,
+  semester INTEGER,
+  credits INTEGER,
+  course_type TEXT CHECK (course_type IN (
+    'core','elective','lab','project','audit'
+  )),
+  teacher_id UUID REFERENCES staff(id) ON DELETE SET NULL,
+  academic_year TEXT,
+  is_active BOOLEAN DEFAULT true
+);
+
+-- 3. CREATE course_outcomes TABLE
+CREATE TABLE IF NOT EXISTS course_outcomes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+  co_number INTEGER NOT NULL,
+  co_statement TEXT NOT NULL,
+  bloom_level TEXT CHECK (bloom_level IN (
+    'remember','understand','apply','analyze','evaluate','create'
+  )),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 4. CREATE program_outcomes TABLE
+CREATE TABLE IF NOT EXISTS program_outcomes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  program_id UUID REFERENCES programs_obe(id) ON DELETE CASCADE,
+  po_number INTEGER NOT NULL,
+  po_statement TEXT NOT NULL,
+  category TEXT DEFAULT 'po'
+);
+
+-- 5. CREATE co_po_mapping TABLE
+CREATE TABLE IF NOT EXISTS co_po_mapping (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+  co_id UUID REFERENCES course_outcomes(id) ON DELETE CASCADE,
+  po_id UUID REFERENCES program_outcomes(id) ON DELETE CASCADE,
+  correlation_level INTEGER CHECK (correlation_level IN (1, 2, 3)),
+  mapped_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(co_id, po_id)
+);
+
+-- 6. CREATE assessment_tools TABLE
+CREATE TABLE IF NOT EXISTS assessment_tools (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  tool_type TEXT CHECK (tool_type IN (
+    'cie','see','assignment','quiz','lab','project','seminar'
+  )),
+  max_marks DECIMAL,
+  weightage DECIMAL,
+  conducted_date DATE
+);
+
+-- 7. CREATE co_assessments TABLE
+CREATE TABLE IF NOT EXISTS co_assessments (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tool_id UUID REFERENCES assessment_tools(id) ON DELETE CASCADE,
+  co_id UUID REFERENCES course_outcomes(id) ON DELETE CASCADE,
+  marks_allocated DECIMAL NOT NULL
+);
+
+-- 8. CREATE student_co_marks TABLE
+CREATE TABLE IF NOT EXISTS student_co_marks (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+  tool_id UUID REFERENCES assessment_tools(id) ON DELETE CASCADE,
+  co_id UUID REFERENCES course_outcomes(id) ON DELETE CASCADE,
+  marks_obtained DECIMAL,
+  max_marks DECIMAL,
+  entered_by UUID REFERENCES staff(id) ON DELETE SET NULL,
+  entered_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 9. CREATE co_attainment TABLE
+CREATE TABLE IF NOT EXISTS co_attainment (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+  co_id UUID REFERENCES course_outcomes(id) ON DELETE CASCADE,
+  academic_year TEXT,
+  direct_attainment DECIMAL,
+  indirect_attainment DECIMAL,
+  final_attainment DECIMAL,
+  target_attainment DECIMAL DEFAULT 60,
+  is_attained BOOLEAN,
+  calculated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 10. CREATE po_attainment TABLE
+CREATE TABLE IF NOT EXISTS po_attainment (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  program_id UUID REFERENCES programs_obe(id) ON DELETE CASCADE,
+  po_id UUID REFERENCES program_outcomes(id) ON DELETE CASCADE,
+  academic_year TEXT,
+  direct_attainment DECIMAL,
+  indirect_attainment DECIMAL,
+  final_attainment DECIMAL,
+  target_attainment DECIMAL DEFAULT 60,
+  is_attained BOOLEAN,
+  calculated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 11. CREATE naac_criteria TABLE
+CREATE TABLE IF NOT EXISTS naac_criteria (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  criterion_number TEXT NOT NULL,
+  criterion_name TEXT NOT NULL,
+  key_indicators JSONB,
+  weightage DECIMAL,
+  self_score DECIMAL,
+  evidence_urls TEXT[],
+  last_updated TIMESTAMPTZ DEFAULT now()
+);
+
+-- 12. CREATE naac_metrics TABLE
+CREATE TABLE IF NOT EXISTS naac_metrics (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  criterion_id UUID REFERENCES naac_criteria(id) ON DELETE CASCADE,
+  metric_id TEXT NOT NULL,
+  metric_name TEXT NOT NULL,
+  description TEXT,
+  data_value TEXT,
+  supporting_docs TEXT[],
+  status TEXT DEFAULT 'pending',
+  verified_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  verified_at TIMESTAMPTZ,
+  notes TEXT
+);
+
+-- 13. CREATE iqac_activities TABLE
+CREATE TABLE IF NOT EXISTS iqac_activities (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  activity_type TEXT,
+  date DATE,
+  description TEXT,
+  participants TEXT[],
+  outcomes TEXT[],
+  documents TEXT[],
+  academic_year TEXT,
+  created_by UUID REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- 14. CREATE faculty_development TABLE
+CREATE TABLE IF NOT EXISTS faculty_development (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_id UUID REFERENCES staff(id) ON DELETE CASCADE,
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  program_type TEXT CHECK (program_type IN (
+    'fdp','workshop','conference','seminar',
+    'online_course','research','publication'
+  )),
+  title TEXT,
+  organizing_body TEXT,
+  date DATE,
+  duration_days INTEGER,
+  certificate_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 15. CREATE research_publications TABLE
+CREATE TABLE IF NOT EXISTS research_publications (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  staff_id UUID REFERENCES staff(id) ON DELETE CASCADE,
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  journal_conference TEXT,
+  publication_type TEXT,
+  year INTEGER,
+  doi TEXT,
+  isbn_issn TEXT,
+  impact_factor DECIMAL,
+  indexed_in TEXT[],
+  document_url TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 16. CREATE student_achievements TABLE
+CREATE TABLE IF NOT EXISTS student_achievements (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  achievement_type TEXT CHECK (achievement_type IN (
+    'academic','sports','cultural','competitive',
+    'research','innovation','award'
+  )),
+  title TEXT,
+  level TEXT CHECK (level IN ('institution','district','state','national','international')),
+  date DATE,
+  certificate_url TEXT,
+  description TEXT
+);
+
+-- 17. CREATE feedback_surveys TABLE
+CREATE TABLE IF NOT EXISTS feedback_surveys (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  survey_type TEXT CHECK (survey_type IN (
+    'student_satisfaction','alumni_feedback',
+    'employer_feedback','faculty_feedback','parent_feedback'
+  )),
+  academic_year TEXT,
+  questions JSONB,
+  is_active BOOLEAN DEFAULT false,
+  start_date DATE,
+  end_date DATE,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 18. CREATE survey_responses TABLE
+CREATE TABLE IF NOT EXISTS survey_responses (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  survey_id UUID REFERENCES feedback_surveys(id) ON DELETE CASCADE,
+  respondent_id UUID,
+  respondent_type TEXT,
+  responses JSONB,
+  submitted_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 19. CREATE ssr_documents TABLE
+CREATE TABLE IF NOT EXISTS ssr_documents (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  criterion TEXT,
+  document_name TEXT,
+  document_url TEXT,
+  academic_year TEXT,
+  uploaded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  uploaded_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================================
+-- INDEXES FOR PERFORMANCE OPTIMIZATION
+-- ============================================================
+CREATE INDEX IF NOT EXISTS idx_obe_prog_inst ON programs_obe(institution_id);
+CREATE INDEX IF NOT EXISTS idx_obe_courses_prog ON courses(program_id);
+CREATE INDEX IF NOT EXISTS idx_obe_co_course ON course_outcomes(course_id);
+CREATE INDEX IF NOT EXISTS idx_obe_po_prog ON program_outcomes(program_id);
+CREATE INDEX IF NOT EXISTS idx_obe_marks_student ON student_co_marks(student_id);
+CREATE INDEX IF NOT EXISTS idx_naac_metrics_crit ON naac_metrics(criterion_id);
+CREATE INDEX IF NOT EXISTS idx_faculty_dev_staff ON faculty_development(staff_id);
+CREATE INDEX IF NOT EXISTS idx_publications_staff ON research_publications(staff_id);
+
+-- ============================================================
+-- ROW LEVEL SECURITY (RLS) POLICIES
+-- ============================================================
+ALTER TABLE programs_obe ENABLE ROW LEVEL SECURITY;
+ALTER TABLE courses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE course_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE program_outcomes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE co_po_mapping ENABLE ROW LEVEL SECURITY;
+ALTER TABLE assessment_tools ENABLE ROW LEVEL SECURITY;
+ALTER TABLE co_assessments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE student_co_marks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE co_attainment ENABLE ROW LEVEL SECURITY;
+ALTER TABLE po_attainment ENABLE ROW LEVEL SECURITY;
+ALTER TABLE naac_criteria ENABLE ROW LEVEL SECURITY;
+ALTER TABLE naac_metrics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE iqac_activities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE faculty_development ENABLE ROW LEVEL SECURITY;
+ALTER TABLE research_publications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE student_achievements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE feedback_surveys ENABLE ROW LEVEL SECURITY;
+ALTER TABLE survey_responses ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ssr_documents ENABLE ROW LEVEL SECURITY;
+
+-- Apply Multi-Tenant Policies
+DROP POLICY IF EXISTS "obe_programs_access" ON programs_obe;
+CREATE POLICY "obe_programs_access" ON programs_obe 
+  FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+
+DROP POLICY IF EXISTS "courses_access" ON courses;
+CREATE POLICY "courses_access" ON courses 
+  FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+
+DROP POLICY IF EXISTS "course_outcomes_access" ON course_outcomes;
+CREATE POLICY "course_outcomes_access" ON course_outcomes 
+  FOR ALL USING (course_id IN (SELECT id FROM courses WHERE institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin'));
+
+DROP POLICY IF EXISTS "program_outcomes_access" ON program_outcomes;
+CREATE POLICY "program_outcomes_access" ON program_outcomes 
+  FOR ALL USING (program_id IN (SELECT id FROM programs_obe WHERE institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin'));
+
+DROP POLICY IF EXISTS "co_po_mapping_access" ON co_po_mapping;
+CREATE POLICY "co_po_mapping_access" ON co_po_mapping 
+  FOR ALL USING (course_id IN (SELECT id FROM courses WHERE institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin'));
+
+DROP POLICY IF EXISTS "assessment_tools_access" ON assessment_tools;
+CREATE POLICY "assessment_tools_access" ON assessment_tools 
+  FOR ALL USING (course_id IN (SELECT id FROM courses WHERE institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin'));
+
+DROP POLICY IF EXISTS "co_assessments_access" ON co_assessments;
+CREATE POLICY "co_assessments_access" ON co_assessments 
+  FOR ALL USING (co_id IN (SELECT id FROM course_outcomes WHERE course_id IN (SELECT id FROM courses WHERE institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin')));
+
+DROP POLICY IF EXISTS "student_co_marks_access" ON student_co_marks;
+CREATE POLICY "student_co_marks_access" ON student_co_marks 
+  FOR ALL USING (student_id IN (SELECT id FROM students WHERE institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin'));
+
+DROP POLICY IF EXISTS "co_attainment_access" ON co_attainment;
+CREATE POLICY "co_attainment_access" ON co_attainment 
+  FOR ALL USING (course_id IN (SELECT id FROM courses WHERE institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin'));
+
+DROP POLICY IF EXISTS "po_attainment_access" ON po_attainment;
+CREATE POLICY "po_attainment_access" ON po_attainment 
+  FOR ALL USING (program_id IN (SELECT id FROM programs_obe WHERE institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin'));
+
+DROP POLICY IF EXISTS "naac_criteria_access" ON naac_criteria;
+CREATE POLICY "naac_criteria_access" ON naac_criteria 
+  FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+
+DROP POLICY IF EXISTS "naac_metrics_access" ON naac_metrics;
+CREATE POLICY "naac_metrics_access" ON naac_metrics 
+  FOR ALL USING (criterion_id IN (SELECT id FROM naac_criteria WHERE institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin'));
+
+DROP POLICY IF EXISTS "iqac_activities_access" ON iqac_activities;
+CREATE POLICY "iqac_activities_access" ON iqac_activities 
+  FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+
+DROP POLICY IF EXISTS "faculty_development_access" ON faculty_development;
+CREATE POLICY "faculty_development_access" ON faculty_development 
+  FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+
+DROP POLICY IF EXISTS "research_publications_access" ON research_publications;
+CREATE POLICY "research_publications_access" ON research_publications 
+  FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+
+DROP POLICY IF EXISTS "student_achievements_access" ON student_achievements;
+CREATE POLICY "student_achievements_access" ON student_achievements 
+  FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+
+DROP POLICY IF EXISTS "feedback_surveys_access" ON feedback_surveys;
+CREATE POLICY "feedback_surveys_access" ON feedback_surveys 
+  FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+
+DROP POLICY IF EXISTS "survey_responses_access" ON survey_responses;
+CREATE POLICY "survey_responses_access" ON survey_responses 
+  FOR ALL USING (survey_id IN (SELECT id FROM feedback_surveys WHERE institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin'));
+
+DROP POLICY IF EXISTS "ssr_documents_access" ON ssr_documents;
+CREATE POLICY "ssr_documents_access" ON ssr_documents 
+  FOR ALL USING (institution_id = get_auth_institution_id() OR get_auth_user_role() = 'SuperAdmin');
+
+-- ============================================================
+-- SEED DATA
+-- ============================================================
+-- Prepopulate NAAC Criteria 1 to 7
+INSERT INTO naac_criteria (id, institution_id, criterion_number, criterion_name, weightage, self_score) VALUES
+  ('10000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '1', 'Curricular Aspects', 100, 3.8),
+  ('10000000-0000-0000-0000-000000000002', 'a0000000-0000-0000-0000-000000000001', '2', 'Teaching-Learning and Evaluation', 350, 3.7),
+  ('10000000-0000-0000-0000-000000000003', 'a0000000-0000-0000-0000-000000000001', '3', 'Research, Innovations and Extension', 120, 3.5),
+  ('10000000-0000-0000-0000-000000000004', 'a0000000-0000-0000-0000-000000000001', '4', 'Infrastructure and Learning Resources', 100, 3.9),
+  ('10000000-0000-0000-0000-000000000005', 'a0000000-0000-0000-0000-000000000001', '5', 'Student Support and Progression', 130, 3.8),
+  ('10000000-0000-0000-0000-000000000006', 'a0000000-0000-0000-0000-000000000001', '6', 'Governance, Leadership and Management', 100, 3.6),
+  ('10000000-0000-0000-0000-000000000007', 'a0000000-0000-0000-0000-000000000001', '7', 'Institutional Values and Best Practices', 100, 3.9)
+  ON CONFLICT DO NOTHING;
+
+-- Seed Demo Program in programs_obe
+INSERT INTO programs_obe (id, institution_id, program_name, program_code, degree_type, duration_years, vision, mission, peos, psos) VALUES
+  ('20000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', 'B.Tech in Computer Science', 'CS-BTECH', 'UG', 4, 
+   'To produce globally competent professionals in software engineering and cloud computing.', 
+   'By providing high-quality logic training and collaborative research modules.',
+   ARRAY['PEO1: Graduate as senior full-stack developers in IT cells', 'PEO2: Establish scalable startups or research systems'],
+   ARRAY['PSO1: Build robust microservices and server databases', 'PSO2: Configure cloud architectures and smart interfaces'])
+  ON CONFLICT DO NOTHING;
+
+-- Seed Program Outcomes NBA PO1 - PO12
+INSERT INTO program_outcomes (id, program_id, po_number, po_statement) VALUES
+  ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 1, 'Engineering Knowledge: Apply science logic to complex software engineering problems.'),
+  ('30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', 2, 'Problem Analysis: Analyze and debug complex cloud algorithms.'),
+  ('30000000-0000-0000-0000-000000000003', '20000000-0000-0000-0000-000000000001', 3, 'Design/Development: Architect databases and microservice layers.'),
+  ('30000000-0000-0000-0000-000000000004', '20000000-0000-0000-0000-000000000001', 4, 'Conduct Investigations: Perform performance benchmarks and load testing.'),
+  ('30000000-0000-0000-0000-000000000005', '20000000-0000-0000-0000-000000000001', 5, 'Modern Tool Usage: Command Next.js, Supabase RLS, and React tools.'),
+  ('30000000-0000-0000-0000-000000000006', '20000000-0000-0000-0000-000000000001', 6, 'The Engineer and Society: Build secure and accessible tech portals.'),
+  ('30000000-0000-0000-0000-000000000007', '20000000-0000-0000-0000-000000000001', 7, 'Environment and Sustainability: Optimize servers energy and efficiency.'),
+  ('30000000-0000-0000-0000-000000000008', '20000000-0000-0000-0000-000000000001', 8, 'Ethics: Enforce data protection and license agreements.'),
+  ('30000000-0000-0000-0000-000000000009', '20000000-0000-0000-0000-000000000001', 9, 'Individual and Team Work: Collaborate in pair programming cells.'),
+  ('30000000-0000-0000-0000-000000000010', '20000000-0000-0000-0000-000000000001', 10, 'Communication: Document walkthroughs and implementation designs.'),
+  ('30000000-0000-0000-0000-000000000011', '20000000-0000-0000-0000-000000000001', 11, 'Project Management: Maintain checklists and track tasks budgets.'),
+  ('30000000-0000-0000-0000-000000000012', '20000000-0000-0000-0000-000000000001', 12, 'Life-long Learning: Eagerly load capabilities and train with AI models.')
+  ON CONFLICT DO NOTHING;
+
+-- Seed Demo Course
+INSERT INTO courses (id, institution_id, program_id, course_code, course_name, semester, credits, course_type, academic_year) VALUES
+  ('40000000-0000-0000-0000-000000000001', 'a0000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 'CS-401', 'Advanced Web Development', 4, 4, 'core', '2026-27')
+  ON CONFLICT DO NOTHING;
+
+
+-- Migration for Module 14: HR Management
+
+CREATE TABLE employee_profiles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id uuid REFERENCES institutions(id),
+  user_id uuid REFERENCES users(id),
+  staff_id uuid REFERENCES staff(id),
+  employee_code TEXT UNIQUE NOT NULL,
+  title TEXT,
+  first_name TEXT NOT NULL,
+  last_name TEXT NOT NULL,
+  date_of_birth DATE,
+  gender TEXT,
+  blood_group TEXT,
+  personal_email TEXT,
+  personal_phone TEXT,
+  emergency_contact_name TEXT,
+  emergency_contact_phone TEXT,
+  address_permanent JSONB,
+  address_current JSONB,
+  photo_url TEXT,
+  aadhar_number TEXT,
+  pan_number TEXT,
+  uan_number TEXT,
+  bank_account_number TEXT,
+  bank_name TEXT,
+  bank_ifsc TEXT,
+  bank_branch TEXT,
+  nationality TEXT DEFAULT 'Indian',
+  religion TEXT,
+  category TEXT,
+  marital_status TEXT,
+  disability BOOLEAN DEFAULT false,
+  disability_details TEXT,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE employment_details (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid REFERENCES employee_profiles(id) ON DELETE CASCADE,
+  institution_id uuid REFERENCES institutions(id),
+  department_id uuid REFERENCES departments(id),
+  designation TEXT NOT NULL,
+  employee_type TEXT CHECK (employee_type IN (
+    'permanent','probation','contract','visiting',
+    'part_time','adhoc','guest'
+  )),
+  joining_date DATE NOT NULL,
+  confirmation_date DATE,
+  retirement_date DATE,
+  reporting_to uuid REFERENCES employee_profiles(id),
+  work_location TEXT,
+  qualification TEXT,
+  specialization TEXT,
+  experience_years DECIMAL,
+  previous_employer TEXT,
+  status TEXT DEFAULT 'active'
+);
+
+CREATE TABLE salary_structures (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id uuid REFERENCES institutions(id),
+  name TEXT NOT NULL,
+  components JSONB NOT NULL,
+  is_active BOOLEAN DEFAULT true,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE employee_salaries (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid REFERENCES employee_profiles(id) ON DELETE CASCADE,
+  structure_id uuid REFERENCES salary_structures(id),
+  basic DECIMAL NOT NULL,
+  hra DECIMAL DEFAULT 0,
+  da DECIMAL DEFAULT 0,
+  ta DECIMAL DEFAULT 0,
+  medical_allowance DECIMAL DEFAULT 0,
+  special_allowance DECIMAL DEFAULT 0,
+  other_allowances JSONB,
+  gross_salary DECIMAL NOT NULL,
+  pf_employee DECIMAL DEFAULT 0,
+  pf_employer DECIMAL DEFAULT 0,
+  esi_employee DECIMAL DEFAULT 0,
+  esi_employer DECIMAL DEFAULT 0,
+  professional_tax DECIMAL DEFAULT 0,
+  tds DECIMAL DEFAULT 0,
+  other_deductions JSONB,
+  net_salary DECIMAL NOT NULL,
+  effective_from DATE NOT NULL,
+  effective_to DATE,
+  is_current BOOLEAN DEFAULT true
+);
+
+CREATE TABLE payroll_runs (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id uuid REFERENCES institutions(id),
+  month INTEGER NOT NULL,
+  year INTEGER NOT NULL,
+  status TEXT CHECK (status IN (
+    'draft','processing','approved','disbursed','locked'
+  )) DEFAULT 'draft',
+  total_gross DECIMAL,
+  total_deductions DECIMAL,
+  total_net DECIMAL,
+  employee_count INTEGER,
+  created_by uuid REFERENCES users(id),
+  approved_by uuid REFERENCES users(id),
+  disbursed_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(institution_id, month, year)
+);
+
+CREATE TABLE payslips (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  payroll_run_id uuid REFERENCES payroll_runs(id) ON DELETE CASCADE,
+  employee_id uuid REFERENCES employee_profiles(id) ON DELETE CASCADE,
+  month INTEGER,
+  year INTEGER,
+  working_days INTEGER,
+  present_days DECIMAL,
+  absent_days DECIMAL,
+  lop_days DECIMAL DEFAULT 0,
+  basic DECIMAL,
+  hra DECIMAL,
+  da DECIMAL,
+  ta DECIMAL,
+  other_allowances JSONB,
+  gross_earnings DECIMAL,
+  pf_deduction DECIMAL,
+  esi_deduction DECIMAL,
+  professional_tax DECIMAL,
+  tds_deduction DECIMAL,
+  loan_deduction DECIMAL DEFAULT 0,
+  other_deductions JSONB,
+  total_deductions DECIMAL,
+  net_salary DECIMAL,
+  pdf_url TEXT,
+  is_published BOOLEAN DEFAULT false
+);
+
+CREATE TABLE leave_types (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id uuid REFERENCES institutions(id),
+  name TEXT NOT NULL,
+  code TEXT NOT NULL,
+  days_per_year INTEGER,
+  is_paid BOOLEAN DEFAULT true,
+  carry_forward BOOLEAN DEFAULT false,
+  max_carry_forward INTEGER DEFAULT 0,
+  applicable_to TEXT[],
+  encashable BOOLEAN DEFAULT false,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE leave_balances (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid REFERENCES employee_profiles(id) ON DELETE CASCADE,
+  leave_type_id uuid REFERENCES leave_types(id) ON DELETE CASCADE,
+  year INTEGER,
+  entitled_days DECIMAL,
+  used_days DECIMAL DEFAULT 0,
+  remaining_days DECIMAL,
+  carried_forward DECIMAL DEFAULT 0,
+  UNIQUE(employee_id, leave_type_id, year)
+);
+
+CREATE TABLE leave_applications (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid REFERENCES employee_profiles(id) ON DELETE CASCADE,
+  leave_type_id uuid REFERENCES leave_types(id),
+  from_date DATE NOT NULL,
+  to_date DATE NOT NULL,
+  total_days DECIMAL NOT NULL,
+  reason TEXT NOT NULL,
+  supporting_doc_url TEXT,
+  status TEXT CHECK (status IN (
+    'pending','approved','rejected','cancelled','recalled'
+  )) DEFAULT 'pending',
+  applied_at TIMESTAMPTZ DEFAULT now(),
+  approved_by uuid REFERENCES users(id),
+  approved_at TIMESTAMPTZ,
+  rejection_reason TEXT,
+  substitute_id uuid REFERENCES employee_profiles(id),
+  handover_notes TEXT
+);
+
+CREATE TABLE attendance_hr (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid REFERENCES employee_profiles(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  in_time TIMESTAMPTZ,
+  out_time TIMESTAMPTZ,
+  total_hours DECIMAL,
+  status TEXT CHECK (status IN (
+    'present','absent','half_day','late','on_leave',
+    'work_from_home','holiday','weekly_off'
+  )),
+  source TEXT DEFAULT 'biometric',
+  remarks TEXT,
+  UNIQUE(employee_id, date)
+);
+
+CREATE TABLE performance_cycles (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id uuid REFERENCES institutions(id),
+  name TEXT NOT NULL,
+  year INTEGER,
+  period_start DATE,
+  period_end DATE,
+  self_appraisal_deadline DATE,
+  hod_review_deadline DATE,
+  principal_review_deadline DATE,
+  status TEXT DEFAULT 'upcoming'
+);
+
+CREATE TABLE performance_appraisals (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  cycle_id uuid REFERENCES performance_cycles(id) ON DELETE CASCADE,
+  employee_id uuid REFERENCES employee_profiles(id) ON DELETE CASCADE,
+  self_score DECIMAL,
+  self_comments TEXT,
+  hod_score DECIMAL,
+  hod_comments TEXT,
+  principal_score DECIMAL,
+  principal_comments TEXT,
+  final_score DECIMAL,
+  rating TEXT CHECK (rating IN (
+    'outstanding','excellent','good','average','below_average'
+  )),
+  increment_recommended DECIMAL,
+  promotion_recommended BOOLEAN DEFAULT false,
+  status TEXT DEFAULT 'pending_self'
+);
+
+CREATE TABLE appraisal_parameters (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id uuid REFERENCES institutions(id),
+  category TEXT,
+  parameter TEXT NOT NULL,
+  description TEXT,
+  max_score INTEGER,
+  weightage DECIMAL,
+  applicable_to TEXT[]
+);
+
+CREATE TABLE employee_documents (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid REFERENCES employee_profiles(id) ON DELETE CASCADE,
+  doc_type TEXT NOT NULL,
+  doc_name TEXT,
+  doc_url TEXT NOT NULL,
+  uploaded_at TIMESTAMPTZ DEFAULT now(),
+  expiry_date DATE,
+  is_verified BOOLEAN DEFAULT false
+);
+
+CREATE TABLE increments (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid REFERENCES employee_profiles(id) ON DELETE CASCADE,
+  effective_date DATE,
+  previous_basic DECIMAL,
+  new_basic DECIMAL,
+  increment_amount DECIMAL,
+  increment_percent DECIMAL,
+  reason TEXT,
+  appraisal_id uuid REFERENCES performance_appraisals(id),
+  approved_by uuid REFERENCES users(id),
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE loan_advances (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid REFERENCES employee_profiles(id) ON DELETE CASCADE,
+  loan_type TEXT,
+  amount DECIMAL,
+  applied_date DATE,
+  approved_amount DECIMAL,
+  tenure_months INTEGER,
+  emi_amount DECIMAL,
+  deduction_start DATE,
+  outstanding_balance DECIMAL,
+  status TEXT DEFAULT 'pending',
+  approved_by uuid REFERENCES users(id)
+);
+
+CREATE TABLE holidays (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id uuid REFERENCES institutions(id),
+  name TEXT NOT NULL,
+  date DATE NOT NULL,
+  type TEXT CHECK (type IN ('national','state','restricted','institution')),
+  year INTEGER,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE TABLE tds_declarations (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  employee_id uuid REFERENCES employee_profiles(id) ON DELETE CASCADE,
+  financial_year TEXT,
+  regime TEXT CHECK (regime IN ('old','new')) DEFAULT 'new',
+  hra_claimed DECIMAL DEFAULT 0,
+  section_80c DECIMAL DEFAULT 0,
+  section_80d DECIMAL DEFAULT 0,
+  section_80g DECIMAL DEFAULT 0,
+  home_loan_interest DECIMAL DEFAULT 0,
+  other_deductions DECIMAL DEFAULT 0,
+  declarations JSONB,
+  submitted_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- Enable RLS
+ALTER TABLE employee_profiles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payslips ENABLE ROW LEVEL SECURITY;
+ALTER TABLE leave_applications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE performance_appraisals ENABLE ROW LEVEL SECURITY;
+ALTER TABLE tds_declarations ENABLE ROW LEVEL SECURITY;
+
+-- RLS: employee sees own payslip
+DROP POLICY IF EXISTS "employee_own_payslip" ON payslips;
+CREATE POLICY "employee_own_payslip" ON payslips
+  FOR SELECT USING (
+    employee_id = (
+      SELECT id FROM employee_profiles 
+      WHERE user_id = auth.uid()
+    )
+  );
+
+-- Seed defaults
+INSERT INTO leave_types (name, code, days_per_year, is_paid, carry_forward, max_carry_forward, encashable)
+VALUES 
+  ('Casual Leave', 'CL', 12, true, false, 0, false),
+  ('Earned Leave', 'EL', 18, true, true, 30, true),
+  ('Sick Leave', 'SL', 10, true, true, 15, false)
+ON CONFLICT DO NOTHING;
+
+INSERT INTO holidays (institution_id, name, date, type, year)
+VALUES 
+  ('a0000000-0000-0000-0000-000000000001', 'Independence Day', '2026-08-15', 'national', 2026),
+  ('a0000000-0000-0000-0000-000000000001', 'Republic Day', '2026-01-26', 'national', 2026)
+ON CONFLICT DO NOTHING;

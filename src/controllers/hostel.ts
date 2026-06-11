@@ -1419,7 +1419,7 @@ export async function getIotMonthlyReport(req: Request, res: Response) {
     (rooms || []).forEach(r => {
       reportMap[r.id] = {
         room_number: r.room_number,
-        block: r.hostel_blocks?.name || 'Unknown',
+        block: (Array.isArray(r.hostel_blocks) ? r.hostel_blocks[0]?.name : (r.hostel_blocks as any)?.name) || 'Unknown',
         electricity: 0,
         water: 0
       };
@@ -2040,7 +2040,7 @@ export async function getWellnessAlerts(req: Request, res: Response) {
           const first = latestThree[0];
           alerts.push({
             type: 'consecutive_low_mood',
-            student_id,
+            student_id: studentId,
             student_name: first.students?.name,
             roll_number: first.students?.roll_number,
             mood_history: latestThree.map(c => c.mood),

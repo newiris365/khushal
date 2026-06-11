@@ -50,7 +50,7 @@ export default function ParentPTMPage() {
   const fetchSlots = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('iris_jwt_token') || '';
       const res = await fetch(`/api/v1/parent/ptm/slots/${selectedTeacherId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -72,7 +72,7 @@ export default function ParentPTMPage() {
     if (!slot) return;
     try {
       setSubmitting(true);
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('iris_jwt_token') || '';
       const res = await fetch('/api/v1/parent/ptm/book', {
         method: 'POST',
         headers: {

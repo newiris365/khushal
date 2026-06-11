@@ -40,7 +40,7 @@ export default function ParentMessagesPage() {
   const fetchMessages = async () => {
     try {
       setLoading(true);
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('iris_jwt_token') || '';
       const res = await fetch(`/api/v1/parent/messages/${selectedTeacherId}`, {
         headers: {
           'Authorization': `Bearer ${token}`
@@ -61,7 +61,7 @@ export default function ParentMessagesPage() {
     if (!inputText.trim()) return;
     try {
       setSending(true);
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('iris_jwt_token') || '';
       const res = await fetch('/api/v1/parent/messages', {
         method: 'POST',
         headers: {

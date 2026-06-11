@@ -29,7 +29,7 @@ export default function ParentDashboardPage() {
     try {
       setIsLoading(true);
       // Fetch today's child status report
-      const token = localStorage.getItem('token') || '';
+      const token = localStorage.getItem('iris_jwt_token') || '';
       const childId = 'b0000000-0000-0000-0000-000000000006'; // Khushal Gehlot
       const todayStr = new Date().toISOString().split('T')[0];
 

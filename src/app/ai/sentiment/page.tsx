@@ -43,7 +43,7 @@ export default function SentimentPage() {
   const [loading, setLoading] = useState(true);
 
   const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
-  const token = typeof window !== 'undefined' ? localStorage.getItem('iris_token') || 'demo' : 'demo';
+  const token = typeof window !== 'undefined' ? localStorage.getItem('iris_jwt_token') || 'demo' : 'demo';
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
   useEffect(() => { fetchTrends(); }, [period]);

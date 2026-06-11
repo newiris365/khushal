@@ -1003,3 +1003,49 @@ cron.schedule('30 10 * * *', async () => {
 
 logger.info('IRIS 365 Canteen Module background cron jobs initialised.');
 
+// ============================================================
+// MODULE 11: Admissions Background Cron Schedulers
+// ============================================================
+
+// 22. Daily Offer Expiration Audit (Runs daily at midnight: '0 0 * * *')
+cron.schedule('0 0 * * *', async () => {
+  logger.info('Running Daily Admission Offers Expiration check...');
+  try {
+    const nowStr = new Date().toISOString();
+
+    // Query open offers that are past their expiry date and still sent
+    const { data: expiredOffers, error } = await supabaseAdmin
+      .from('admission_offers')
+      .select('id, applicant_id')
+      .eq('status', 'sent')
+      .lt('expires_at', nowStr);
+
+    if (error) {
+      logger.error('Error querying expired admission offers: ' + error.message);
+      return;
+    }
+
+    if (expiredOffers && expiredOffers.length > 0) {
+      const expiredIds = expiredOffers.map(o => o.id);
+      const applicantIds = expiredOffers.map(o => o.applicant_id);
+
+      // Update offer statuses
+      await supabaseAdmin
+        .from('admission_offers')
+        .update({ status: 'expired' })
+        .in('id', expiredIds);
+
+      // Update applicants status to waitlisted or withdrawn
+      await supabaseAdmin
+        .from('applicants')
+        .update({ status: 'withdrawn', updated_at: nowStr })
+        .in('id', applicantIds);
+
+      logger.info(`Admission Offers Cron: Expired ${expiredOffers.length} offers and updated applicant profiles.`);
+    }
+  } catch (err: any) {
+    logger.error('Error running admission offers expiration cron: ' + err.message);
+  }
+});
+
+
