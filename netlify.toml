@@ -1,5 +1,5 @@
 [build]
-  command = "rm -rf .next && next build"
+  command = "npm run build"
   publish = ".next"
 
 [build.environment]
