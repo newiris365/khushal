@@ -10,18 +10,19 @@ export default function ParentAttendancePage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Sandbox student profile ID
-    apiGet('/core/attendance/student/b0000000-0000-0000-0000-000000000006').then(res => {
-      if (res.success) {
+    // First get linked child info, then fetch attendance
+    apiGet('/core/parent/child-info').then(childRes => {
+      if (childRes.success && childRes.child?.student_id) {
+        return apiGet(`/core/attendance/student/${childRes.child.student_id}`);
+      }
+      return null;
+    }).then(res => {
+      if (res?.success) {
         setStats(res.stats || { overall: 72, total: 25, present: 18 });
-        setBreakdown(res.breakdown || [
-          { subject: 'Compiler Design', percentage: 76, total: 10, present: 8 },
-          { subject: 'Database Systems', percentage: 70, total: 10, present: 7 },
-          { subject: 'Computer Networks', percentage: 60, total: 5, present: 3 }
-        ]);
+        setBreakdown(res.breakdown || []);
       }
       setIsLoading(false);
-    });
+    }).catch(() => setIsLoading(false));
   }, []);
 
   return (

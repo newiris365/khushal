@@ -76,7 +76,7 @@ export default function PortalShell({
         if (parsed.role === 'SuperAdmin') return; // SuperAdmin sees everything
 
         const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
-        const res = await fetch(`${API_BASE}/permissions/my`, {
+        const res = await fetch(`/api/settings?action=my_permissions`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!res.ok) return;

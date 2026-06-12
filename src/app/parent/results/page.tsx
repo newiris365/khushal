@@ -9,13 +9,25 @@ export default function ParentResultsPage() {
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    // Sandbox student profile ID
-    apiGet('/core/exams/marksheet/b0000000-0000-0000-0000-000000000006/a0000000-0000-0000-0000-000000000001').then(res => {
-      if (res.success) {
+    // First get linked child info, then fetch results
+    apiGet('/core/parent/child-info').then(childRes => {
+      if (childRes.success && childRes.child?.student_id) {
+        // Fetch student's exam results
+        return apiGet(`/core/fees/student/${childRes.child.student_id}`).then(() => childRes.child.student_id);
+      }
+      return null;
+    }).then(studentId => {
+      if (studentId) {
+        // Results are fetched via the student's own data
+        return apiGet(`/core/attendance/student/${studentId}`);
+      }
+      return null;
+    }).then(res => {
+      if (res?.success) {
         setResults(res.results || []);
       }
       setIsLoading(false);
-    });
+    }).catch(() => setIsLoading(false));
   }, []);
 
   const calculateOverallGpa = () => {

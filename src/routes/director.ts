@@ -33,7 +33,14 @@ import {
   saveFinancialCosts,
   getCompetitorBenchmarks,
   getStudentJourneyScores,
-  assignCounselorIntervention
+  assignCounselorIntervention,
+  getCampusPulse,
+  getFeeRecoveryTracking,
+  getAttendanceTrends,
+  getComplaintSLA,
+  getNAACData,
+  getSystemAnomalies,
+  resolveAnomaly,
 } from '../controllers/director';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -98,5 +105,14 @@ router.get('/competitor-benchmarks', getCompetitorBenchmarks);
 // --- MODULE 9: STUDENT JOURNEY ANALYTICS ---
 router.get('/student-journey', getStudentJourneyScores);
 router.post('/student-journey/intervention', assignCounselorIntervention);
+
+// --- CAMPUS PULSE & KPIs (Migration 20260612000014) ---
+router.get('/campus-pulse', getCampusPulse);
+router.get('/fee-recovery', getFeeRecoveryTracking);
+router.get('/attendance-trends', getAttendanceTrends);
+router.get('/complaint-sla', getComplaintSLA);
+router.get('/naac-data', getNAACData);
+router.get('/anomalies', getSystemAnomalies);
+router.put('/anomalies/:id/resolve', resolveAnomaly);
 
 export default router;

@@ -161,27 +161,47 @@ export interface ModulePermission {
 }
 
 export async function getFeatureToggles(institutionId: string): Promise<ApiResponse<{ features: FeatureToggle[] }>> {
-  return apiGet(`/permissions/features/${institutionId}`);
+  return settingsApi('get_features');
 }
 
 export async function setFeatureToggles(institutionId: string, features: FeatureToggle[]): Promise<ApiResponse> {
-  return apiPost('/permissions/features', { institution_id: institutionId, features });
+  return settingsApi('save_features', { features });
 }
 
 export async function getRolePermissions(institutionId: string): Promise<ApiResponse<{ permissions: ModulePermission[]; all_roles: string[]; all_modules: string[] }>> {
-  return apiGet(`/permissions/roles/${institutionId}`);
+  return settingsApi('get_permissions');
 }
 
 export async function setRolePermissions(institutionId: string, permissions: ModulePermission[]): Promise<ApiResponse> {
-  return apiPost('/permissions/roles', { institution_id: institutionId, permissions });
+  return settingsApi('save_permissions', { permissions });
 }
 
 export async function getMyPermissions(): Promise<ApiResponse<{ features: FeatureToggle[]; permissions: ModulePermission[] }>> {
-  return apiGet('/permissions/my');
+  return settingsApi('my_permissions');
 }
 
 export async function seedPermissions(institutionId: string): Promise<ApiResponse> {
-  return apiPost('/permissions/seed', { institution_id: institutionId });
+  return settingsApi('seed');
+}
+
+// Netlify Function helper for settings operations
+async function settingsApi(action: string, body?: any): Promise<ApiResponse> {
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('iris_jwt_token') : null;
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const response = await fetch(`/api/settings?action=${action}`, {
+      method: body ? 'POST' : 'GET',
+      headers,
+      body: body ? JSON.stringify(body) : undefined,
+    });
+
+    return await response.json();
+  } catch (err: any) {
+    console.error(`settingsApi failed for ${action}:`, err);
+    return { success: false, error: 'Connection failed. Please check if backend is running.' };
+  }
 }
 
 // =========================================================================

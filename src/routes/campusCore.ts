@@ -21,6 +21,10 @@ import {
   batchUpdateAttendanceMethods,
   importAttendanceRecords,
   importStudentProfiles,
+  initiateFeePayment,
+  payLibraryFine,
+  registerForEvent,
+  checkGateAccess,
   getStudents,
   createStudent,
   getStudentById,
@@ -31,7 +35,6 @@ import {
   addTimetableBlock,
   updateTimetableBlock,
   deleteTimetableBlock,
-  autoGenerateTimetable,
   getStudentTimetable,
   getFeeStructures,
   createFeeStructure,
@@ -65,7 +68,101 @@ import {
   calculateHealthScores,
   assignSubstitute,
   createInstallmentPlan,
-  getEligibleScholarships
+  getEligibleScholarships,
+  getAttendanceWarnings,
+  getAttendanceWarningLogs,
+  getFeeDefaulters,
+  getFeeEscalationLogs,
+  getExamHalls,
+  createExamHall,
+  getExamSeating,
+  allocateSeating,
+  getLostFoundItems,
+  createLostFoundItem,
+  claimLostFoundItem,
+  generateParentOtp,
+  verifyParentOtp,
+  linkParentToChild,
+  getNoticeReadStats,
+  getAssignments,
+  createAssignment,
+  getAssignmentSubmissions,
+  gradeAssignment,
+  getStudyMaterials,
+  createStudyMaterial,
+  getMyLeaves,
+  getDepartmentLeaves,
+  getWalletBalance,
+  getWalletTransactions,
+  getMyBusETA,
+  getParentChildInfo,
+  getParentDailySummary,
+  parentTopupWallet,
+  getParentNotifications,
+  markParentNotificationRead,
+  getParentUnreadCount,
+  getChildBusStatus,
+  preauthorizeVisitor,
+  getParentVisitorPreauths,
+  getCiaAssessments,
+  createCiaAssessment,
+  getCiaMarks,
+  enterCiaMarks,
+  getAttendanceShortageReport,
+  getPendingLeaves,
+  approveLeaveFaculty,
+  rejectLeaveFaculty,
+  getTeacherTimetable,
+  getAdmissions,
+  createAdmission,
+  updateAdmissionStatus,
+  uploadAdmissionDocument,
+  bulkAdmitStudents,
+  detectTimetableConflicts,
+  autoGenerateTimetable,
+  getTimetableConstraints,
+  createTimetableConstraint,
+  getConsolidatedDefaulters,
+  getAcademicCalendar,
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+  getHolidays,
+  createHoliday,
+  approveVisitor,
+  getUnallocatedStudents,
+  checkoutRoom,
+  markCurfewCheckin,
+  getCurfewStatus,
+  getBlockMealSubscriptions,
+  approveRoomTransfer,
+  completeRoomTransfer,
+  getRoomTransferRequests,
+  verifyPersonAtGate,
+  gateScanLookup,
+  getApprovedVisitorsToday,
+  checkPersonRestricted,
+  createAccessRestriction,
+  getAccessRestrictions,
+  vehicleEntry,
+  vehicleExit,
+  getVehicleLogs,
+  getTodaysEventAttendees,
+  getDriverAssignments,
+  getDriverTodayTrip,
+  startBusTrip,
+  endBusTrip,
+  getDriverHeadcount,
+  getDriverStopSchedule,
+  markStopReached,
+  reportBusIncident,
+  getVendorOrders,
+  updateOrderStatus,
+  toggleMenuAvailability,
+  updateMenuPrice,
+  updateMenuStock,
+  getVendorDailySales,
+  getPrepList,
 } from '../controllers/campusCore';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -79,9 +176,9 @@ router.use(authMiddleware);
 // =========================================================================
 // 1. ATTENDANCE ROUTERS
 // =========================================================================
-router.post('/attendance/session/start', requireRole(['Staff', 'Admin', 'SuperAdmin']), startSession);
-router.get('/attendance/session/:id/qr', requireRole(['Staff', 'Admin', 'SuperAdmin']), getSessionQr);
-router.put('/attendance/session/:id/close', requireRole(['Staff', 'Admin', 'SuperAdmin']), closeSession);
+router.post('/attendance/session/start', requireRole(['Staff', 'Teacher', 'Admin', 'SuperAdmin']), startSession);
+router.get('/attendance/session/:id/qr', requireRole(['Staff', 'Teacher', 'Admin', 'SuperAdmin']), getSessionQr);
+router.put('/attendance/session/:id/close', requireRole(['Staff', 'Teacher', 'Admin', 'SuperAdmin']), closeSession);
 router.post('/attendance/mark/qr', requireRole(['Student']), markAttendanceQr);
 router.post('/attendance/mark/biometric', markAttendanceBiometric);
 router.post('/attendance/mark/bulk', requireRole(['Staff', 'Admin', 'SuperAdmin']), markAttendanceBulk);
@@ -130,7 +227,6 @@ router.get('/timetable/:departmentId', getTimetable);
 router.post('/timetable', requireRole(['Admin', 'SuperAdmin']), addTimetableBlock);
 router.put('/timetable/:id', requireRole(['Admin', 'SuperAdmin']), updateTimetableBlock);
 router.delete('/timetable/:id', requireRole(['Admin', 'SuperAdmin']), deleteTimetableBlock);
-router.post('/timetable/auto-generate', requireRole(['Admin', 'SuperAdmin']), autoGenerateTimetable);
 router.get('/timetable/student/:studentId', getStudentTimetable);
 router.post('/timetable/substitute', requireRole(['Admin', 'SuperAdmin']), assignSubstitute);
 
@@ -183,5 +279,191 @@ router.post('/idcards/generate/bulk', requireRole(['Admin', 'SuperAdmin']), gene
 // =========================================================================
 router.post('/import/attendance', requireRole(['Admin', 'SuperAdmin', 'Director']), importAttendanceRecords);
 router.post('/import/students', requireRole(['Admin', 'SuperAdmin', 'Director', 'HOD']), importStudentProfiles);
+
+// =========================================================================
+// 9. FEATURE LOGIC FIX ROUTERS
+// =========================================================================
+router.post('/fees/pay', requireRole(['Student']), initiateFeePayment);
+router.post('/library/fines/pay', requireRole(['Student']), payLibraryFine);
+router.post('/events/register', requireRole(['Student']), registerForEvent);
+router.post('/gate/check', requireRole(['Security', 'Admin', 'SuperAdmin']), checkGateAccess);
+
+// =========================================================================
+// 10. ATTENDANCE WARNINGS ROUTERS
+// =========================================================================
+router.get('/attendance/warnings', requireRole(['Admin', 'SuperAdmin', 'Director']), getAttendanceWarnings);
+router.get('/attendance/warning-logs', requireRole(['Admin', 'SuperAdmin']), getAttendanceWarningLogs);
+
+// =========================================================================
+// 11. FEE DEFAULTER ESCALATION ROUTERS
+// =========================================================================
+router.get('/fees/defaulters', requireRole(['Admin', 'SuperAdmin', 'Director', 'HOD']), getFeeDefaulters);
+router.get('/fees/escalation-logs', requireRole(['Admin', 'SuperAdmin']), getFeeEscalationLogs);
+
+// =========================================================================
+// 12. EXAM HALLS & SEATING ROUTERS
+// =========================================================================
+router.get('/exam-halls', requireRole(['Admin', 'SuperAdmin', 'Teacher']), getExamHalls);
+router.post('/exam-halls', requireRole(['Admin', 'SuperAdmin']), createExamHall);
+router.get('/exam-seating', requireRole(['Admin', 'SuperAdmin', 'Teacher']), getExamSeating);
+router.post('/exam-seating/allocate', requireRole(['Admin', 'SuperAdmin']), allocateSeating);
+
+// =========================================================================
+// 13. LOST & FOUND ROUTERS
+// =========================================================================
+router.get('/lost-found', requireRole(['Admin', 'SuperAdmin', 'Security', 'Student']), getLostFoundItems);
+router.post('/lost-found', requireRole(['Admin', 'SuperAdmin', 'Security']), createLostFoundItem);
+router.post('/lost-found/:id/claim', requireRole(['Student']), claimLostFoundItem);
+
+// =========================================================================
+// 14. PARENT LINK ROUTERS
+// =========================================================================
+router.post('/parent-otp', generateParentOtp);
+router.post('/parent-verify-otp', verifyParentOtp);
+router.post('/parent-link-child', requireRole(['Parent']), linkParentToChild);
+
+// =========================================================================
+// 15. NOTICE READ RECEIPTS ROUTERS
+// =========================================================================
+router.get('/notices/:id/read-stats', requireRole(['Admin', 'SuperAdmin', 'Director']), getNoticeReadStats);
+
+// =========================================================================
+// 16. ASSIGNMENT SUBMISSION ROUTERS
+// =========================================================================
+router.get('/assignments', getAssignments);
+router.post('/assignments', requireRole(['Admin', 'SuperAdmin', 'Teacher']), createAssignment);
+router.get('/assignments/:id/submissions', requireRole(['Admin', 'SuperAdmin', 'Teacher']), getAssignmentSubmissions);
+router.put('/assignments/submissions/:id/grade', requireRole(['Admin', 'SuperAdmin', 'Teacher']), gradeAssignment);
+
+// =========================================================================
+// 17. STUDY MATERIAL ROUTERS
+// =========================================================================
+router.get('/study-materials', getStudyMaterials);
+router.post('/study-materials', requireRole(['Admin', 'SuperAdmin', 'Teacher']), createStudyMaterial);
+
+// =========================================================================
+// 18. LEAVE APPLICATION ROUTERS
+// =========================================================================
+router.get('/leaves/my', requireRole(['Student']), getMyLeaves);
+router.get('/leaves/department', requireRole(['Admin', 'SuperAdmin', 'Teacher', 'HOD']), getDepartmentLeaves);
+
+// =========================================================================
+// 19. WALLET ROUTERS
+// =========================================================================
+router.get('/wallet/balance', requireRole(['Student']), getWalletBalance);
+router.get('/wallet/transactions', requireRole(['Student']), getWalletTransactions);
+
+// =========================================================================
+// 20. BUS ETA ROUTER
+// =========================================================================
+router.get('/transit/eta', requireRole(['Student']), getMyBusETA);
+
+// =========================================================================
+// 21. PARENT MODULE ROUTERS
+// =========================================================================
+router.get('/parent/child-info', requireRole(['Parent']), getParentChildInfo);
+router.get('/parent/daily-summary', requireRole(['Parent']), getParentDailySummary);
+router.post('/parent/wallet/topup', requireRole(['Parent']), parentTopupWallet);
+router.get('/parent/notifications', requireRole(['Parent']), getParentNotifications);
+router.put('/parent/notifications/:id/read', requireRole(['Parent']), markParentNotificationRead);
+router.get('/parent/notifications/unread-count', requireRole(['Parent']), getParentUnreadCount);
+router.get('/parent/child/bus-status', requireRole(['Parent']), getChildBusStatus);
+router.post('/parent/visitor/preauthorize', requireRole(['Parent']), preauthorizeVisitor);
+router.get('/parent/visitor/preauths', requireRole(['Parent']), getParentVisitorPreauths);
+
+// =========================================================================
+// 22. FACULTY MODULE ROUTERS
+// =========================================================================
+router.get('/faculty/cia/assessments', requireRole(['Teacher', 'Staff', 'Admin', 'SuperAdmin']), getCiaAssessments);
+router.post('/faculty/cia/assessments', requireRole(['Teacher', 'Staff', 'Admin', 'SuperAdmin']), createCiaAssessment);
+router.get('/faculty/cia/marks/:assessmentId', requireRole(['Teacher', 'Staff', 'Admin', 'SuperAdmin']), getCiaMarks);
+router.post('/faculty/cia/marks', requireRole(['Teacher', 'Staff', 'Admin', 'SuperAdmin']), enterCiaMarks);
+router.get('/faculty/attendance/shortage', requireRole(['Teacher', 'Staff', 'Admin', 'SuperAdmin']), getAttendanceShortageReport);
+router.get('/faculty/leaves/pending', requireRole(['Teacher', 'Staff', 'Admin', 'SuperAdmin']), getPendingLeaves);
+router.put('/faculty/leaves/:id/approve', requireRole(['Teacher', 'Staff', 'Admin', 'SuperAdmin']), approveLeaveFaculty);
+router.put('/faculty/leaves/:id/reject', requireRole(['Teacher', 'Staff', 'Admin', 'SuperAdmin']), rejectLeaveFaculty);
+router.get('/faculty/timetable', requireRole(['Teacher', 'Staff']), getTeacherTimetable);
+
+// =========================================================================
+// 23. ADMISSION WORKFLOW ROUTERS
+// =========================================================================
+router.get('/admissions/list', requireRole(['Admin', 'SuperAdmin', 'Director']), getAdmissions);
+router.post('/admissions/new', requireRole(['Admin', 'SuperAdmin', 'Director']), createAdmission);
+router.put('/admissions/:id/status', requireRole(['Admin', 'SuperAdmin', 'Director']), updateAdmissionStatus);
+router.post('/admissions/documents', requireRole(['Admin', 'SuperAdmin', 'Director']), uploadAdmissionDocument);
+router.post('/admissions/bulk', requireRole(['Admin', 'SuperAdmin']), bulkAdmitStudents);
+
+// =========================================================================
+// 24. TIMETABLE AUTO-GENERATION ROUTERS
+// =========================================================================
+router.post('/timetable/detect-conflicts', requireRole(['Admin', 'SuperAdmin']), detectTimetableConflicts);
+router.post('/timetable/auto-generate', requireRole(['Admin', 'SuperAdmin']), autoGenerateTimetable);
+router.get('/timetable/constraints', requireRole(['Admin', 'SuperAdmin']), getTimetableConstraints);
+router.post('/timetable/constraints', requireRole(['Admin', 'SuperAdmin']), createTimetableConstraint);
+
+// =========================================================================
+// 25. CONSOLIDATED DEFAULTER REPORT
+// =========================================================================
+router.get('/reports/defaulters', requireRole(['Admin', 'SuperAdmin', 'Director', 'HOD']), getConsolidatedDefaulters);
+
+// =========================================================================
+// 26. ACADEMIC CALENDAR ROUTERS
+// =========================================================================
+router.get('/calendar', requireRole(['Admin', 'SuperAdmin', 'Director', 'Teacher', 'Staff', 'Student']), getAcademicCalendar);
+router.post('/calendar', requireRole(['Admin', 'SuperAdmin', 'Director']), createCalendarEvent);
+router.put('/calendar/:id', requireRole(['Admin', 'SuperAdmin', 'Director']), updateCalendarEvent);
+router.delete('/calendar/:id', requireRole(['Admin', 'SuperAdmin', 'Director']), deleteCalendarEvent);
+router.get('/calendar/holidays', requireRole(['Admin', 'SuperAdmin', 'Director', 'Teacher', 'Staff', 'Student']), getHolidays);
+router.post('/calendar/holidays', requireRole(['Admin', 'SuperAdmin', 'Director']), createHoliday);
+
+// =========================================================================
+// 27. WARDEN MODULE ROUTERS
+// =========================================================================
+router.put('/hostel/visitors/:id/approve', requireRole(['Warden', 'Admin', 'SuperAdmin']), approveVisitor);
+router.get('/hostel/unallocated-students', requireRole(['Warden', 'Admin', 'SuperAdmin']), getUnallocatedStudents);
+router.put('/hostel/allocations/:id/checkout', requireRole(['Warden', 'Admin', 'SuperAdmin']), checkoutRoom);
+router.post('/hostel/curfew/mark', requireRole(['Warden', 'Admin', 'SuperAdmin']), markCurfewCheckin);
+router.get('/hostel/curfew/status', requireRole(['Warden', 'Admin', 'SuperAdmin']), getCurfewStatus);
+router.get('/hostel/meal-subscriptions', requireRole(['Warden', 'Admin', 'SuperAdmin']), getBlockMealSubscriptions);
+router.get('/hostel/transfers', requireRole(['Warden', 'Admin', 'SuperAdmin', 'Student']), getRoomTransferRequests);
+router.put('/hostel/transfers/:id/approve', requireRole(['Warden', 'Admin', 'SuperAdmin']), approveRoomTransfer);
+router.put('/hostel/transfers/:id/complete', requireRole(['Admin', 'SuperAdmin']), completeRoomTransfer);
+
+// =========================================================================
+// 28. SECURITY MODULE ROUTERS
+// =========================================================================
+router.get('/gate/verify/:identifier', requireRole(['Security', 'Admin', 'SuperAdmin', 'Warden']), verifyPersonAtGate);
+router.get('/gate/scan/:identifier', requireRole(['Security', 'Admin', 'SuperAdmin']), gateScanLookup);
+router.get('/gate/visitors-today', requireRole(['Security', 'Admin', 'SuperAdmin', 'Warden']), getApprovedVisitorsToday);
+router.get('/gate/restricted/:personId', requireRole(['Security', 'Admin', 'SuperAdmin']), checkPersonRestricted);
+router.get('/gate/restrictions', requireRole(['Security', 'Admin', 'SuperAdmin']), getAccessRestrictions);
+router.post('/gate/restrictions', requireRole(['Admin', 'SuperAdmin']), createAccessRestriction);
+router.post('/gate/vehicle/entry', requireRole(['Security', 'Admin', 'SuperAdmin']), vehicleEntry);
+router.put('/gate/vehicle/:id/exit', requireRole(['Security', 'Admin', 'SuperAdmin']), vehicleExit);
+router.get('/gate/vehicle-logs', requireRole(['Security', 'Admin', 'SuperAdmin']), getVehicleLogs);
+router.get('/gate/event-attendees', requireRole(['Security', 'Admin', 'SuperAdmin']), getTodaysEventAttendees);
+
+// =========================================================================
+// 29. DRIVER MODULE ROUTERS
+// =========================================================================
+router.get('/driver/assignments', requireRole(['Driver']), getDriverAssignments);
+router.get('/driver/today-trip', requireRole(['Driver']), getDriverTodayTrip);
+router.post('/driver/trip/start', requireRole(['Driver']), startBusTrip);
+router.put('/driver/trip/:id/end', requireRole(['Driver']), endBusTrip);
+router.get('/driver/headcount', requireRole(['Driver']), getDriverHeadcount);
+router.get('/driver/stops', requireRole(['Driver']), getDriverStopSchedule);
+router.post('/driver/stops/reach', requireRole(['Driver']), markStopReached);
+router.post('/driver/incident', requireRole(['Driver']), reportBusIncident);
+
+// =========================================================================
+// 30. VENDOR / CANTEEN MODULE ROUTERS
+// =========================================================================
+router.get('/vendor/orders', requireRole(['Vendor', 'Admin', 'SuperAdmin']), getVendorOrders);
+router.put('/vendor/orders/:id/status', requireRole(['Vendor', 'Admin', 'SuperAdmin']), updateOrderStatus);
+router.put('/vendor/menu/:id/availability', requireRole(['Vendor', 'Admin', 'SuperAdmin']), toggleMenuAvailability);
+router.put('/vendor/menu/:id/price', requireRole(['Vendor', 'Admin', 'SuperAdmin']), updateMenuPrice);
+router.put('/vendor/menu/:id/stock', requireRole(['Vendor', 'Admin', 'SuperAdmin']), updateMenuStock);
+router.get('/vendor/sales', requireRole(['Vendor', 'Admin', 'SuperAdmin']), getVendorDailySales);
+router.get('/vendor/prep-list', requireRole(['Vendor', 'Admin', 'SuperAdmin']), getPrepList);
 
 export default router;

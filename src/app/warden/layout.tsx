@@ -1,15 +1,20 @@
 "use client";
 
+import React from 'react';
 import PortalShell, { SidebarLink } from '../../components/PortalShell';
-import { LayoutDashboard, ClipboardList, Users, FileText, Bed, AlertTriangle } from 'lucide-react';
+import {
+  LayoutDashboard, Users, Home, ClipboardList, UtensilsCrossed,
+  ArrowLeftRight, Shield, Bell
+} from 'lucide-react';
 
 const wardenLinks: SidebarLink[] = [
-  { label: 'Dashboard', href: '/warden/hostel', icon: LayoutDashboard },
-  { label: 'Complaints', href: '/warden/hostel/complaints', icon: AlertTriangle },
-  { label: 'Leave Requests', href: '/warden/hostel/leave', icon: FileText },
-  { label: 'Room Allocations', href: '/warden/hostel/allocations', icon: Bed },
-  { label: 'Visitors', href: '/warden/hostel/visitors', icon: Users },
-  { label: 'Reports', href: '/warden/hostel/reports', icon: ClipboardList },
+  { label: 'Dashboard', href: '/warden/dashboard', icon: LayoutDashboard },
+  { label: 'Visitor Approvals', href: '/warden/visitors', icon: Users },
+  { label: 'Nightly Check-In', href: '/warden/curfew', icon: ClipboardList },
+  { label: 'Room Management', href: '/warden/rooms', icon: Home },
+  { label: 'Meal Subscriptions', href: '/warden/meals', icon: UtensilsCrossed },
+  { label: 'Room Transfers', href: '/warden/transfers', icon: ArrowLeftRight },
+  { label: 'Complaints', href: '/warden/complaints', icon: Bell },
 ];
 
 export default function WardenLayout({ children }: { children: React.ReactNode }) {
@@ -18,7 +23,7 @@ export default function WardenLayout({ children }: { children: React.ReactNode }
       portalName="Warden Portal"
       portalBadge="Warden"
       sidebarLinks={wardenLinks}
-      accentColor="#8B5CF6"
+      accentColor="#059669"
     >
       {children}
     </PortalShell>

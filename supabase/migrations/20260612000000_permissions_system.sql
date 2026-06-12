@@ -51,14 +51,14 @@ CREATE POLICY "institution_features_select" ON institution_features
 
 CREATE POLICY "institution_features_insert" ON institution_features
   FOR INSERT WITH CHECK (
-    get_auth_user_role() = 'SuperAdmin'
-    OR (get_auth_user_role() = 'Admin' AND institution_id = get_auth_institution_id())
+    get_auth_user_role() = 'Admin'
+    AND institution_id = get_auth_institution_id()
   );
 
 CREATE POLICY "institution_features_update" ON institution_features
   FOR UPDATE USING (
-    get_auth_user_role() = 'SuperAdmin'
-    OR (get_auth_user_role() = 'Admin' AND institution_id = get_auth_institution_id())
+    get_auth_user_role() = 'Admin'
+    AND institution_id = get_auth_institution_id()
   );
 
 CREATE POLICY "institution_features_delete" ON institution_features

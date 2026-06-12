@@ -11,7 +11,14 @@ const ALL_FEATURES = [
   'fees', 'exams', 'canteen', 'hostel', 'library', 'placements',
   'hr', 'gate', 'gym', 'transit', 'events', 'notices', 'idcards',
   'ai_concierge', 'obe', 'naac', 'faculty_development', 'achievements',
-  'director', 'parent_portal'
+  'director', 'parent_portal', 'lost_found', 'exam_seating',
+  'assignments', 'study_materials', 'leave_applications', 'campus_wallet',
+  'cia_marks', 'faculty_portal', 'admission_workflow', 'timetable_auto',
+  'defaulter_report', 'academic_calendar', 'curfew_checkin', 'room_transfers',
+  'visitor_approval', 'meal_block_view', 'gate_scanner', 'vehicle_logs',
+  'access_restrictions', 'event_attendees',   'driver_console', 'driver_trip',
+  'driver_headcount', 'driver_emergency',
+  'vendor_portal', 'vendor_orders', 'vendor_menu', 'vendor_sales', 'vendor_prep'
 ];
 
 const ALL_ROLES = [
@@ -57,7 +64,7 @@ router.get('/features/:institutionId', requireRole(['SuperAdmin', 'Admin']), asy
 // =========================================================================
 // POST /permissions/features - Toggle feature(s) for an institution
 // =========================================================================
-router.post('/features', requireRole(['SuperAdmin', 'Admin']), async (req: Request, res: Response) => {
+router.post('/features', requireRole(['Admin']), async (req: Request, res: Response) => {
   try {
     const { institution_id, features } = req.body;
     // features: Array<{ feature_key: string; enabled: boolean }>
@@ -67,7 +74,7 @@ router.post('/features', requireRole(['SuperAdmin', 'Admin']), async (req: Reque
     }
 
     // Admin can only modify their own institution
-    if (req.user?.role === 'Admin' && req.user?.institution_id !== institution_id) {
+    if (req.user?.institution_id !== institution_id) {
       return res.status(403).json({ success: false, error: 'Access denied to this institution.' });
     }
 

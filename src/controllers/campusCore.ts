@@ -5,6 +5,7 @@ import jwt from 'jsonwebtoken';
 import PDFDocument from 'pdfkit';
 import { supabaseAdmin } from '../config/supabase';
 import { sendBulkReminders, FeeReminderEntry } from '../services/whatsapp';
+import logger from '../config/logger';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'iris-365-super-secret-key-for-jwt-signing';
 
@@ -256,6 +257,20 @@ export async function startSession(req: Request, res: Response) {
     // Check if QR method is enabled
     if (!(await isMethodEnabled(institutionId, 'qr'))) {
       return res.status(403).json({ success: false, error: 'QR attendance is not enabled for your institution.' });
+    }
+
+    // Department-scoping check: Staff/Teacher can only create sessions for their own department
+    const userRole = req.user?.role;
+    if (userRole === 'Staff' || userRole === 'Teacher') {
+      const { data: staffRecord } = await supabaseAdmin
+        .from('staff')
+        .select('department_id')
+        .eq('user_id', req.user?.id)
+        .maybeSingle();
+
+      if (staffRecord && staffRecord.department_id && staffRecord.department_id !== department_id) {
+        return res.status(403).json({ success: false, error: 'You can only create sessions for your own department.' });
+      }
     }
 
     // Get QR config for this institution (geo-fence + rotate interval)
@@ -1397,44 +1412,6 @@ export async function deleteTimetableBlock(req: Request, res: Response) {
     return res.status(200).json({ success: true, message: 'Block removed from timetable.' });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Failed to delete block.' });
-  }
-}
-
-export async function autoGenerateTimetable(req: Request, res: Response) {
-  try {
-    const { department_id, subjects, teachers, rooms } = req.body;
-    // Simple mock scheduling solver (satisfies basic slot assignment constraints)
-    const timeSlots = ['09:00 - 10:00 AM', '10:15 - 11:15 AM', '11:30 - 12:30 PM', '02:00 - 03:00 PM'];
-    const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
-    const generated = [];
-
-    for (const day of days) {
-      for (let i = 0; i < timeSlots.length; i++) {
-        const sub = subjects[i % subjects.length];
-        const teacher = teachers[i % teachers.length];
-        const room = rooms[i % rooms.length];
-
-        const { data } = await supabaseAdmin
-          .from('timetable')
-          .insert({
-            institution_id: req.user?.institution_id,
-            department_id,
-            day_of_week: day,
-            time_slot: timeSlots[i],
-            subject: sub,
-            teacher_id: teacher,
-            room
-          })
-          .select()
-          .single();
-
-        if (data) generated.push(data);
-      }
-    }
-
-    return res.status(200).json({ success: true, count: generated.length });
-  } catch (err) {
-    return res.status(500).json({ success: false, error: 'Auto-generation solver failed.' });
   }
 }
 
@@ -2822,5 +2799,1839 @@ export async function importStudentProfiles(req: Request, res: Response) {
     });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Student profile import failed.' });
+  }
+}
+
+// =========================================================================
+// FEE PAYMENT WITH LATE PENALTY
+// =========================================================================
+export async function initiateFeePayment(req: Request, res: Response) {
+  try {
+    const { fee_structure_id, payment_date } = req.body;
+    const institutionId = req.user?.institution_id;
+
+    if (!fee_structure_id) {
+      return res.status(400).json({ success: false, error: 'fee_structure_id required.' });
+    }
+
+    // Get student_id from user
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('institution_id', institutionId)
+      .eq('user_id', req.user?.id)
+      .maybeSingle();
+
+    if (!student) {
+      return res.status(404).json({ success: false, error: 'Student profile not found.' });
+    }
+
+    const { data: rpcRes, error: rpcErr } = await supabaseAdmin.rpc('initiate_fee_payment', {
+      p_institution_id: institutionId,
+      p_student_id: student.id,
+      p_fee_structure_id: fee_structure_id,
+      p_payment_date: payment_date || new Date().toISOString().split('T')[0]
+    });
+
+    if (rpcErr) throw rpcErr;
+    return res.status(200).json(rpcRes);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Fee payment initiation failed.' });
+  }
+}
+
+// =========================================================================
+// LIBRARY FINE PAYMENT
+// =========================================================================
+export async function payLibraryFine(req: Request, res: Response) {
+  try {
+    const { book_issue_id, amount, payment_method } = req.body;
+    const institutionId = req.user?.institution_id;
+
+    if (!book_issue_id || !amount) {
+      return res.status(400).json({ success: false, error: 'book_issue_id and amount required.' });
+    }
+
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('institution_id', institutionId)
+      .eq('user_id', req.user?.id)
+      .maybeSingle();
+
+    if (!student) {
+      return res.status(404).json({ success: false, error: 'Student profile not found.' });
+    }
+
+    const { data: rpcRes, error: rpcErr } = await supabaseAdmin.rpc('pay_library_fine', {
+      p_institution_id: institutionId,
+      p_student_id: student.id,
+      p_book_issue_id: book_issue_id,
+      p_amount: amount,
+      p_payment_method: payment_method || 'cash',
+      p_recorded_by: req.user?.id
+    });
+
+    if (rpcErr) throw rpcErr;
+    return res.status(200).json(rpcRes);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Fine payment failed.' });
+  }
+}
+
+// =========================================================================
+// EVENT REGISTRATION WITH CAPACITY CHECK
+// =========================================================================
+export async function registerForEvent(req: Request, res: Response) {
+  try {
+    const { event_id } = req.body;
+    const institutionId = req.user?.institution_id;
+
+    if (!event_id) {
+      return res.status(400).json({ success: false, error: 'event_id required.' });
+    }
+
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('institution_id', institutionId)
+      .eq('user_id', req.user?.id)
+      .maybeSingle();
+
+    if (!student) {
+      return res.status(404).json({ success: false, error: 'Student profile not found.' });
+    }
+
+    const { data: rpcRes, error: rpcErr } = await supabaseAdmin.rpc('register_event_atomic', {
+      p_institution_id: institutionId,
+      p_event_id: event_id,
+      p_student_id: student.id
+    });
+
+    if (rpcErr) throw rpcErr;
+    return res.status(200).json(rpcRes);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Event registration failed.' });
+  }
+}
+
+// =========================================================================
+// GATE ACCESS CHECK (blacklist + status)
+// =========================================================================
+export async function checkGateAccess(req: Request, res: Response) {
+  try {
+    const { person_id, person_type } = req.body;
+    const institutionId = req.user?.institution_id;
+
+    if (!person_id) {
+      return res.status(400).json({ success: false, error: 'person_id required.' });
+    }
+
+    const { data: rpcRes, error: rpcErr } = await supabaseAdmin.rpc('check_gate_access', {
+      p_institution_id: institutionId,
+      p_person_id: person_id,
+      p_person_type: person_type || 'student'
+    });
+
+    if (rpcErr) throw rpcErr;
+    return res.status(200).json(rpcRes);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message || 'Gate access check failed.' });
+  }
+}
+
+// =========================================================================
+// ATTENDANCE WARNINGS CONTROLLERS
+// =========================================================================
+export async function getAttendanceWarnings(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_institution_attendance_summary');
+    if (error) throw error;
+    return res.status(200).json({ success: true, warnings: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getAttendanceWarningLogs(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('attendance_warning_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return res.status(200).json({ success: true, logs: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// FEE DEFAULTER CONTROLLERS
+// =========================================================================
+export async function getFeeDefaulters(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_fee_defaulters');
+    if (error) throw error;
+    return res.status(200).json({ success: true, defaulters: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getFeeEscalationLogs(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('fee_escalation_logs')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return res.status(200).json({ success: true, logs: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// EXAM HALLS & SEATING CONTROLLERS
+// =========================================================================
+export async function getExamHalls(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('exam_halls')
+      .select('*')
+      .eq('is_active', true)
+      .order('hall_name');
+    if (error) throw error;
+    return res.status(200).json({ success: true, halls: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function createExamHall(req: Request, res: Response) {
+  try {
+    const { hall_name, room_number, capacity, building, has_ac } = req.body;
+    if (!hall_name || !room_number) {
+      return res.status(400).json({ success: false, error: 'hall_name and room_number required.' });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('exam_halls')
+      .insert({
+        institution_id: req.user?.institution_id,
+        hall_name,
+        room_number,
+        capacity: capacity || 30,
+        building: building || '',
+        has_ac: has_ac || false,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, hall: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getExamSeating(req: Request, res: Response) {
+  try {
+    const { exam_id } = req.query;
+    if (!exam_id) return res.status(400).json({ success: false, error: 'exam_id required.' });
+    const { data, error } = await supabaseAdmin
+      .from('exam_seating')
+      .select('*, students(roll_number, users(full_name))')
+      .eq('exam_id', exam_id)
+      .order('room_number')
+      .order('seat_number');
+    if (error) throw error;
+    const seating = (data || []).map((s: any) => ({
+      ...s,
+      student_name: s.students?.users?.full_name,
+      roll_number: s.students?.roll_number,
+    }));
+    return res.status(200).json({ success: true, seating });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function allocateSeating(req: Request, res: Response) {
+  try {
+    const { exam_id } = req.body;
+    if (!exam_id) return res.status(400).json({ success: false, error: 'exam_id required.' });
+    const { data, error } = await supabaseAdmin.rpc('auto_allocate_seating', { p_exam_id: exam_id });
+    if (error) throw error;
+    return res.status(200).json({ success: true, result: data?.[0] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// LOST & FOUND CONTROLLERS
+// =========================================================================
+export async function getLostFoundItems(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('lost_found_items')
+      .select('*, users!reported_by(full_name), users!claimed_by(full_name)')
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    const items = (data || []).map((item: any) => ({
+      ...item,
+      reported_by_name: item.users?.full_name || 'Unknown',
+      claimed_by_name: item.users?.full_name || null,
+    }));
+    return res.status(200).json({ success: true, items });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function createLostFoundItem(req: Request, res: Response) {
+  try {
+    const { item_name, category, description, location_found, photo_url } = req.body;
+    if (!item_name) return res.status(400).json({ success: false, error: 'item_name required.' });
+    const { data, error } = await supabaseAdmin
+      .from('lost_found_items')
+      .insert({
+        institution_id: req.user?.institution_id,
+        reported_by: req.user?.id,
+        item_name,
+        category: category || 'Other',
+        description: description || '',
+        location_found: location_found || '',
+        photo_url: photo_url || null,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, item: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function claimLostFoundItem(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabaseAdmin.rpc('claim_lost_found_item', { p_item_id: id });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Claim failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// PARENT LINK CONTROLLERS
+// =========================================================================
+export async function generateParentOtp(req: Request, res: Response) {
+  try {
+    const { phone, purpose } = req.body;
+    if (!phone || !purpose) return res.status(400).json({ success: false, error: 'phone and purpose required.' });
+    const { data, error } = await supabaseAdmin.rpc('generate_parent_otp', {
+      p_phone: phone,
+      p_purpose: purpose,
+    });
+    if (error) throw error;
+    const otp = data?.[0]?.otp_code;
+    // In production: send OTP via WhatsApp/SMS
+    logger.info(`[OTP GENERATED] Phone: ${phone}, Purpose: ${purpose}, OTP: ${otp}`);
+    return res.status(200).json({ success: true, message: 'OTP sent successfully.', otp_id: data?.[0]?.otp_id });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function verifyParentOtp(req: Request, res: Response) {
+  try {
+    const { phone, otp, purpose } = req.body;
+    if (!phone || !otp || !purpose) return res.status(400).json({ success: false, error: 'phone, otp, and purpose required.' });
+    const { data, error } = await supabaseAdmin.rpc('verify_parent_otp', {
+      p_phone: phone,
+      p_otp: otp,
+      p_purpose: purpose,
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Verification failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function linkParentToChild(req: Request, res: Response) {
+  try {
+    const { roll_number, child_dob } = req.body;
+    if (!roll_number || !child_dob) return res.status(400).json({ success: false, error: 'roll_number and child_dob required.' });
+    const { data, error } = await supabaseAdmin.rpc('link_parent_to_child', {
+      p_roll_number: roll_number,
+      p_child_dob: child_dob,
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Linking failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// NOTICE READ RECEIPTS CONTROLLER
+// =========================================================================
+export async function getNoticeReadStats(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabaseAdmin.rpc('get_notice_read_stats', { p_notice_id: id });
+    if (error) throw error;
+    return res.status(200).json({ success: true, stats: data?.[0] || null });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// ASSIGNMENT CONTROLLERS
+// =========================================================================
+export async function getAssignments(req: Request, res: Response) {
+  try {
+    const { departmentId, semester } = req.query;
+    let query = supabaseAdmin
+      .from('assignments')
+      .select('*, users!created_by(full_name)')
+      .eq('is_published', true)
+      .order('deadline', { ascending: false });
+
+    if (departmentId) query = query.eq('department_id', departmentId);
+    if (semester) query = query.eq('semester', parseInt(semester as string));
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const assignments = (data || []).map((a: any) => ({
+      ...a,
+      created_by_name: a.users?.full_name || 'Unknown',
+    }));
+    return res.status(200).json({ success: true, assignments });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function createAssignment(req: Request, res: Response) {
+  try {
+    const { title, description, subject, department_id, total_marks, deadline, allowed_file_types, max_file_size_mb, semester, batch_year } = req.body;
+    if (!title || !department_id || !deadline) {
+      return res.status(400).json({ success: false, error: 'title, department_id, and deadline required.' });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('assignments')
+      .insert({
+        institution_id: req.user?.institution_id,
+        department_id,
+        created_by: req.user?.id,
+        title,
+        description: description || '',
+        subject: subject || '',
+        total_marks: total_marks || 100,
+        deadline,
+        allowed_file_types: allowed_file_types || ['pdf', 'jpg', 'jpeg', 'png'],
+        max_file_size_mb: max_file_size_mb || 10,
+        semester: semester || null,
+        batch_year: batch_year || '',
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, assignment: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getAssignmentSubmissions(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabaseAdmin
+      .from('assignment_submissions')
+      .select('*, students(roll_number, users(full_name))')
+      .eq('assignment_id', id)
+      .order('submitted_at', { ascending: false });
+    if (error) throw error;
+    const submissions = (data || []).map((s: any) => ({
+      ...s,
+      student_name: s.students?.users?.full_name,
+      roll_number: s.students?.roll_number,
+    }));
+    return res.status(200).json({ success: true, submissions });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function gradeAssignment(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { marks_obtained, feedback } = req.body;
+    const { data, error } = await supabaseAdmin
+      .from('assignment_submissions')
+      .update({
+        marks_obtained,
+        feedback: feedback || '',
+        status: 'graded',
+        graded_at: new Date().toISOString(),
+        graded_by: req.user?.id,
+      })
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, submission: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// STUDY MATERIAL CONTROLLERS
+// =========================================================================
+export async function getStudyMaterials(req: Request, res: Response) {
+  try {
+    const { departmentId, semester, category } = req.query;
+    let query = supabaseAdmin
+      .from('study_materials')
+      .select('*, users!uploaded_by(full_name)')
+      .eq('is_published', true)
+      .order('created_at', { ascending: false });
+
+    if (departmentId) query = query.eq('department_id', departmentId);
+    if (semester) query = query.eq('semester', parseInt(semester as string));
+    if (category) query = query.eq('category', category);
+
+    const { data, error } = await query;
+    if (error) throw error;
+
+    const materials = (data || []).map((m: any) => ({
+      ...m,
+      uploaded_by_name: m.users?.full_name || 'Unknown',
+    }));
+    return res.status(200).json({ success: true, materials });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function createStudyMaterial(req: Request, res: Response) {
+  try {
+    const { title, description, subject, department_id, file_url, file_name, file_type, file_size_kb, category, semester, batch_year } = req.body;
+    if (!title || !file_url) {
+      return res.status(400).json({ success: false, error: 'title and file_url required.' });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('study_materials')
+      .insert({
+        institution_id: req.user?.institution_id,
+        department_id: department_id || null,
+        uploaded_by: req.user?.id,
+        title,
+        description: description || '',
+        subject: subject || '',
+        file_url,
+        file_name: file_name || '',
+        file_type: file_type || '',
+        file_size_kb: file_size_kb || 0,
+        category: category || 'Notes',
+        semester: semester || null,
+        batch_year: batch_year || '',
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, material: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// LEAVE APPLICATION CONTROLLERS
+// =========================================================================
+export async function getMyLeaves(req: Request, res: Response) {
+  try {
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('user_id', req.user?.id)
+      .maybeSingle();
+
+    if (!student) return res.status(404).json({ success: false, error: 'Student profile not found.' });
+
+    const { data, error } = await supabaseAdmin
+      .from('leave_applications')
+      .select('*')
+      .eq('student_id', student.id)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    return res.status(200).json({ success: true, leaves: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getDepartmentLeaves(req: Request, res: Response) {
+  try {
+    const { departmentId } = req.query;
+    let query = supabaseAdmin
+      .from('leave_applications')
+      .select('*, students(roll_number, department_id, users(full_name))')
+      .order('created_at', { ascending: false });
+
+    if (departmentId) query = query.eq('students.department_id', departmentId);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    const leaves = (data || []).map((l: any) => ({
+      ...l,
+      student_name: l.students?.users?.full_name,
+      roll_number: l.students?.roll_number,
+    }));
+    return res.status(200).json({ success: true, leaves });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// WALLET CONTROLLERS
+// =========================================================================
+export async function getWalletBalance(req: Request, res: Response) {
+  try {
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('wallet_balance')
+      .eq('user_id', req.user?.id)
+      .maybeSingle();
+
+    return res.status(200).json({ success: true, balance: student?.wallet_balance || 0 });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getWalletTransactions(req: Request, res: Response) {
+  try {
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('user_id', req.user?.id)
+      .maybeSingle();
+
+    if (!student) return res.status(404).json({ success: false, error: 'Student profile not found.' });
+
+    const { data, error } = await supabaseAdmin
+      .from('wallet_transactions')
+      .select('*')
+      .eq('student_id', student.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return res.status(200).json({ success: true, transactions: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// BUS ETA CONTROLLER
+// =========================================================================
+export async function getMyBusETA(req: Request, res: Response) {
+  try {
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('user_id', req.user?.id)
+      .maybeSingle();
+
+    if (!student) return res.status(404).json({ success: false, error: 'Student profile not found.' });
+
+    const { data, error } = await supabaseAdmin.rpc('get_bus_eta_for_student', { p_student_id: student.id });
+    if (error) throw error;
+    return res.status(200).json({ success: true, eta: data?.[0] || null });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// PARENT MODULE CONTROLLERS
+// =========================================================================
+export async function getParentChildInfo(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_parent_child_info');
+    if (error) throw error;
+    if (!data || data.length === 0) {
+      return res.status(404).json({ success: false, error: 'No linked child found. Please link your child first.' });
+    }
+    return res.status(200).json({ success: true, child: data[0] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getParentDailySummary(req: Request, res: Response) {
+  try {
+    const { date } = req.query;
+    const { data, error } = await supabaseAdmin.rpc('get_parent_daily_summary', {
+      p_date: date || new Date().toISOString().split('T')[0]
+    });
+    if (error) throw error;
+    return res.status(200).json({ success: true, summary: data?.[0] || null });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function parentTopupWallet(req: Request, res: Response) {
+  try {
+    const { student_id, amount, description } = req.body;
+    if (!student_id || !amount) {
+      return res.status(400).json({ success: false, error: 'student_id and amount required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('parent_topup_child_wallet', {
+      p_student_id: student_id,
+      p_amount: amount,
+      p_description: description || 'Parent wallet top-up',
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Top-up failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getParentNotifications(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('parent_notifications')
+      .select('*')
+      .eq('parent_user_id', req.user?.id)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return res.status(200).json({ success: true, notifications: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function markParentNotificationRead(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { error } = await supabaseAdmin
+      .from('parent_notifications')
+      .update({ is_read: true })
+      .eq('id', id)
+      .eq('parent_user_id', req.user?.id);
+    if (error) throw error;
+    return res.status(200).json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getParentUnreadCount(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_parent_unread_count');
+    if (error) throw error;
+    return res.status(200).json({ success: true, count: data || 0 });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getChildBusStatus(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_child_bus_status');
+    if (error) throw error;
+    return res.status(200).json({ success: true, bus: data?.[0] || null });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function preauthorizeVisitor(req: Request, res: Response) {
+  try {
+    const { student_id, visitor_name, visitor_phone, visit_date, visit_time, purpose } = req.body;
+    if (!student_id || !visitor_name || !visit_date) {
+      return res.status(400).json({ success: false, error: 'student_id, visitor_name, and visit_date required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('preauthorize_visitor', {
+      p_student_id: student_id,
+      p_visitor_name: visitor_name,
+      p_visitor_phone: visitor_phone || '',
+      p_visit_date: visit_date,
+      p_visit_time: visit_time || null,
+      p_purpose: purpose || null,
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Pre-authorization failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getParentVisitorPreauths(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('hostel_visitor_preauth')
+      .select('*, students(roll_number, users(full_name))')
+      .eq('parent_user_id', req.user?.id)
+      .order('visit_date', { ascending: false });
+    if (error) throw error;
+    const preauths = (data || []).map((p: any) => ({
+      ...p,
+      student_name: p.students?.users?.full_name,
+    }));
+    return res.status(200).json({ success: true, preauths });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// FACULTY MODULE CONTROLLERS
+// =========================================================================
+export async function getCiaAssessments(req: Request, res: Response) {
+  try {
+    const { departmentId, subject } = req.query;
+    let query = supabaseAdmin
+      .from('cia_assessments')
+      .select('*, users!created_by(full_name)')
+      .eq('is_published', true)
+      .order('date', { ascending: false });
+
+    if (departmentId) query = query.eq('department_id', departmentId);
+    if (subject) query = query.eq('subject', subject);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    const assessments = (data || []).map((a: any) => ({
+      ...a,
+      created_by_name: a.users?.full_name,
+    }));
+    return res.status(200).json({ success: true, assessments });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function createCiaAssessment(req: Request, res: Response) {
+  try {
+    const { name, assessment_type, subject, department_id, max_marks, weightage_pct, semester, batch_year, date, deadline } = req.body;
+    if (!name || !assessment_type || !department_id) {
+      return res.status(400).json({ success: false, error: 'name, assessment_type, and department_id required.' });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('cia_assessments')
+      .insert({
+        institution_id: req.user?.institution_id,
+        department_id,
+        created_by: req.user?.id,
+        name,
+        assessment_type,
+        subject: subject || '',
+        max_marks: max_marks || 30,
+        weightage_pct: weightage_pct || 0,
+        semester: semester || null,
+        batch_year: batch_year || '',
+        date: date || new Date().toISOString().split('T')[0],
+        deadline: deadline || null,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, assessment: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getCiaMarks(req: Request, res: Response) {
+  try {
+    const { assessmentId } = req.params;
+    const { data, error } = await supabaseAdmin
+      .from('cia_marks')
+      .select('*, students(roll_number, users(full_name))')
+      .eq('assessment_id', assessmentId)
+      .order('marks_obtained', { ascending: false });
+    if (error) throw error;
+    const marks = (data || []).map((m: any) => ({
+      ...m,
+      student_name: m.students?.users?.full_name,
+      roll_number: m.students?.roll_number,
+    }));
+    return res.status(200).json({ success: true, marks });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function enterCiaMarks(req: Request, res: Response) {
+  try {
+    const { assessment_id, marks } = req.body;
+    if (!assessment_id || !marks || !Array.isArray(marks)) {
+      return res.status(400).json({ success: false, error: 'assessment_id and marks array required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('bulk_enter_cia_marks', {
+      p_assessment_id: assessment_id,
+      p_marks: JSON.stringify(marks),
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Marks entry failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getAttendanceShortageReport(req: Request, res: Response) {
+  try {
+    const { departmentId, subject } = req.query;
+    if (!departmentId) {
+      return res.status(400).json({ success: false, error: 'departmentId required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('get_class_attendance_shortage', {
+      p_department_id: departmentId,
+      p_subject: subject || null,
+    });
+    if (error) throw error;
+    return res.status(200).json({ success: true, students: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getPendingLeaves(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('leave_applications')
+      .select('*, students(roll_number, department_id, users(full_name))')
+      .in('status', ['pending', 'faculty_approved'])
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    const leaves = (data || []).map((l: any) => ({
+      ...l,
+      student_name: l.students?.users?.full_name,
+      roll_number: l.students?.roll_number,
+    }));
+    return res.status(200).json({ success: true, leaves });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function approveLeaveFaculty(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { remarks } = req.body;
+    const userRole = req.user?.role || 'Teacher';
+    const { data, error } = await supabaseAdmin.rpc('approve_leave', {
+      p_leave_id: id,
+      p_approver_role: userRole,
+      p_remarks: remarks || '',
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Approval failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function rejectLeaveFaculty(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { remarks } = req.body;
+    const { data, error } = await supabaseAdmin.rpc('reject_leave', {
+      p_leave_id: id,
+      p_remarks: remarks || '',
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Rejection failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getTeacherTimetable(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_teacher_timetable', {
+      p_teacher_id: req.user?.id,
+    });
+    if (error) throw error;
+    return res.status(200).json({ success: true, timetable: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// ADMISSION WORKFLOW CONTROLLERS
+// =========================================================================
+export async function getAdmissions(req: Request, res: Response) {
+  try {
+    const { status, year } = req.query;
+    let query = supabaseAdmin
+      .from('student_admissions')
+      .select('*, departments(name), admission_documents(*)')
+      .order('created_at', { ascending: false });
+
+    if (status) query = query.eq('admission_status', status);
+    if (year) query = query.eq('admission_year', year);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return res.status(200).json({ success: true, admissions: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function createAdmission(req: Request, res: Response) {
+  try {
+    const { applicant_name, email, phone, department_id, semester, batch_year,
+            guardian_name, guardian_phone, dob, gender, address, category,
+            blood_group, aadhaar_number } = req.body;
+    if (!applicant_name) {
+      return res.status(400).json({ success: false, error: 'applicant_name required.' });
+    }
+    const appNumber = `ADM${Date.now().toString(36).toUpperCase()}`;
+    const { data, error } = await supabaseAdmin
+      .from('student_admissions')
+      .insert({
+        institution_id: req.user?.institution_id,
+        applicant_name, email, phone, department_id,
+        application_number: appNumber,
+        semester: semester || 1,
+        batch_year: batch_year || new Date().getFullYear().toString(),
+        guardian_name, guardian_phone, dob, gender, address, category,
+        blood_group, aadhaar_number,
+        admission_status: 'applied',
+      })
+      .select()
+      .single();
+    if (error) throw error;
+
+    // Log workflow
+    await supabaseAdmin.from('admission_workflow').insert({
+      admission_id: data.id,
+      action: 'application_submitted',
+      performed_by: req.user?.id,
+      remarks: 'Application created',
+    });
+
+    return res.status(200).json({ success: true, admission: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function updateAdmissionStatus(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { status, remarks } = req.body;
+    const validStatuses = ['applied', 'documents_pending', 'under_review', 'approved', 'enrolled', 'rejected', 'waitlisted'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ success: false, error: 'Invalid status.' });
+    }
+    const { error } = await supabaseAdmin
+      .from('student_admissions')
+      .update({ admission_status: status, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+
+    await supabaseAdmin.from('admission_workflow').insert({
+      admission_id: id,
+      action: `status_changed_to_${status}`,
+      performed_by: req.user?.id,
+      remarks: remarks || `Status changed to ${status}`,
+    });
+
+    return res.status(200).json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function uploadAdmissionDocument(req: Request, res: Response) {
+  try {
+    const { admission_id, document_type, file_name, file_url, file_size_kb } = req.body;
+    if (!admission_id || !document_type || !file_url) {
+      return res.status(400).json({ success: false, error: 'admission_id, document_type, and file_url required.' });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('admission_documents')
+      .insert({ admission_id, document_type, file_name, file_url, file_size_kb })
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, document: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function bulkAdmitStudents(req: Request, res: Response) {
+  try {
+    const { students } = req.body;
+    if (!students || !Array.isArray(students)) {
+      return res.status(400).json({ success: false, error: 'students array required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('bulk_admit_students', {
+      p_students: JSON.stringify(students),
+      p_institution_id: req.user?.institution_id,
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Bulk admit failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// TIMETABLE AUTO-GENERATION CONTROLLERS
+// =========================================================================
+export async function detectTimetableConflicts(req: Request, res: Response) {
+  try {
+    const { slots } = req.body;
+    if (!slots || !Array.isArray(slots)) {
+      return res.status(400).json({ success: false, error: 'slots array required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('detect_timetable_conflicts', {
+      p_institution_id: req.user?.institution_id,
+      pSlots: JSON.stringify(slots),
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Conflict detection failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function autoGenerateTimetable(req: Request, res: Response) {
+  try {
+    const { department_id, semester, batch_year, subjects } = req.body;
+    if (!department_id || !subjects || !Array.isArray(subjects)) {
+      return res.status(400).json({ success: false, error: 'department_id and subjects array required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('auto_generate_timetable', {
+      p_institution_id: req.user?.institution_id,
+      p_department_id: department_id,
+      p_semester: semester || 1,
+      p_batch_year: batch_year || '',
+      p_subjects: JSON.stringify(subjects),
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Auto-generation failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getTimetableConstraints(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('timetable_constraints')
+      .select('*')
+      .eq('institution_id', req.user?.institution_id);
+    if (error) throw error;
+    return res.status(200).json({ success: true, constraints: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function createTimetableConstraint(req: Request, res: Response) {
+  try {
+    const { constraint_type, teacher_id, room, day_of_week, time_slot, max_hours_per_day, notes } = req.body;
+    if (!constraint_type) {
+      return res.status(400).json({ success: false, error: 'constraint_type required.' });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('timetable_constraints')
+      .insert({
+        institution_id: req.user?.institution_id,
+        constraint_type, teacher_id, room, day_of_week, time_slot,
+        max_hours_per_day: max_hours_per_day || 6,
+        notes,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, constraint: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// CONSOLIDATED DEFAULTER REPORT
+// =========================================================================
+export async function getConsolidatedDefaulters(req: Request, res: Response) {
+  try {
+    const { threshold, overdueDays } = req.query;
+    const { data, error } = await supabaseAdmin.rpc('get_consolidated_defaulters', {
+      p_institution_id: req.user?.institution_id,
+      p_attendance_threshold: threshold ? parseFloat(threshold as string) : 75,
+      p_fee_overdue_days: overdueDays ? parseInt(overdueDays as string) : 30,
+    });
+    if (error) throw error;
+    return res.status(200).json({ success: true, defaulters: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// ACADEMIC CALENDAR CONTROLLERS
+// =========================================================================
+export async function getAcademicCalendar(req: Request, res: Response) {
+  try {
+    const { semester, months } = req.query;
+    const fromDate = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabaseAdmin.rpc('get_academic_calendar_upcoming', {
+      p_institution_id: req.user?.institution_id,
+      p_from_date: fromDate,
+      p_months_ahead: months ? parseInt(months as string) : 12,
+    });
+    if (error) throw error;
+    return res.status(200).json({ success: true, events: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function createCalendarEvent(req: Request, res: Response) {
+  try {
+    const { title, event_type, description, start_date, end_date, semester,
+            batch_year, color, is_published } = req.body;
+    if (!title || !event_type || !start_date) {
+      return res.status(400).json({ success: false, error: 'title, event_type, and start_date required.' });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('academic_calendar')
+      .insert({
+        institution_id: req.user?.institution_id,
+        title, event_type, description, start_date, end_date,
+        semester, batch_year,
+        color: color || '#6C2BD9',
+        is_published: is_published !== false,
+        created_by: req.user?.id,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, event: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function updateCalendarEvent(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    const { error } = await supabaseAdmin
+      .from('academic_calendar')
+      .update(updates)
+      .eq('id', id);
+    if (error) throw error;
+    return res.status(200).json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function deleteCalendarEvent(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { error } = await supabaseAdmin
+      .from('academic_calendar')
+      .delete()
+      .eq('id', id);
+    if (error) throw error;
+    return res.status(200).json({ success: true });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getHolidays(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('academic_calendar_holidays')
+      .select('*')
+      .eq('institution_id', req.user?.institution_id)
+      .order('date');
+    if (error) throw error;
+    return res.status(200).json({ success: true, holidays: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function createHoliday(req: Request, res: Response) {
+  try {
+    const { name, date, is_optional } = req.body;
+    if (!name || !date) {
+      return res.status(400).json({ success: false, error: 'name and date required.' });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('academic_calendar_holidays')
+      .insert({ institution_id: req.user?.institution_id, name, date, is_optional })
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, holiday: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// WARDEN MODULE CONTROLLERS
+// =========================================================================
+export async function approveVisitor(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { approve, remarks } = req.body;
+    const { data, error } = await supabaseAdmin.rpc('approve_hostel_visitor', {
+      p_visitor_id: id,
+      p_warden_id: req.user?.id,
+      p_approve: approve,
+      p_remarks: remarks || '',
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Approval failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getUnallocatedStudents(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_unallocated_students');
+    if (error) throw error;
+    return res.status(200).json({ success: true, students: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function checkoutRoom(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { reason, deposit_action } = req.body;
+    const { data, error } = await supabaseAdmin.rpc('checkout_hostel_room', {
+      p_allocation_id: id,
+      p_warden_id: req.user?.id,
+      p_reason: reason || '',
+      p_deposit_action: deposit_action || 'refunded',
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Checkout failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function markCurfewCheckin(req: Request, res: Response) {
+  try {
+    const { block_id, date, students } = req.body;
+    if (!block_id || !students || !Array.isArray(students)) {
+      return res.status(400).json({ success: false, error: 'block_id and students array required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('mark_curfew_checkin', {
+      p_block_id: block_id,
+      p_warden_id: req.user?.id,
+      pcheck_date: date || new Date().toISOString().split('T')[0],
+      p_students: JSON.stringify(students),
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Check-in failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getCurfewStatus(req: Request, res: Response) {
+  try {
+    const { blockId, date } = req.query;
+    if (!blockId) {
+      return res.status(400).json({ success: false, error: 'blockId required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('get_curfew_status', {
+      p_block_id: blockId,
+      pcheck_date: date || new Date().toISOString().split('T')[0],
+    });
+    if (error) throw error;
+    return res.status(200).json({ success: true, students: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getBlockMealSubscriptions(req: Request, res: Response) {
+  try {
+    const { blockId } = req.query;
+    if (!blockId) {
+      return res.status(400).json({ success: false, error: 'blockId required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('get_block_meal_subscriptions', {
+      p_block_id: blockId,
+    });
+    if (error) throw error;
+    return res.status(200).json({ success: true, subscriptions: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function approveRoomTransfer(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { approve, remarks } = req.body;
+    const { data, error } = await supabaseAdmin.rpc('approve_room_transfer', {
+      p_request_id: id,
+      p_warden_id: req.user?.id,
+      p_approve: approve,
+      p_remarks: remarks || '',
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Approval failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function completeRoomTransfer(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabaseAdmin.rpc('complete_room_transfer', {
+      p_request_id: id,
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Transfer failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getRoomTransferRequests(req: Request, res: Response) {
+  try {
+    const { status } = req.query;
+    let query = supabaseAdmin
+      .from('room_transfer_requests')
+      .select('*, students(roll_number, users(full_name)), hostel_rooms!current_room_id(room_number), hostel_rooms!requested_room_id(room_number)')
+      .order('created_at', { ascending: false });
+
+    if (status) query = query.eq('status', status);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return res.status(200).json({ success: true, requests: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// SECURITY MODULE CONTROLLERS
+// =========================================================================
+export async function verifyPersonAtGate(req: Request, res: Response) {
+  try {
+    const { identifier } = req.params;
+    if (!identifier) {
+      return res.status(400).json({ success: false, error: 'identifier required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('verify_person_at_gate', {
+      p_identifier: identifier,
+    });
+    if (error) throw error;
+    return res.status(200).json({ success: true, persons: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function gateScanLookup(req: Request, res: Response) {
+  try {
+    const { identifier } = req.params;
+    if (!identifier) {
+      return res.status(400).json({ success: false, error: 'identifier required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('gate_scan_lookup', {
+      p_identifier: identifier,
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Lookup failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getApprovedVisitorsToday(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_approved_visitors_today');
+    if (error) throw error;
+    return res.status(200).json({ success: true, visitors: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function checkPersonRestricted(req: Request, res: Response) {
+  try {
+    const { personId } = req.params;
+    const { data, error } = await supabaseAdmin.rpc('check_person_restricted', {
+      p_person_id: personId,
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { is_restricted: false });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function createAccessRestriction(req: Request, res: Response) {
+  try {
+    const { person_type, person_id, restriction_type, reason, valid_until } = req.body;
+    if (!person_type || !person_id || !restriction_type || !reason) {
+      return res.status(400).json({ success: false, error: 'person_type, person_id, restriction_type, and reason required.' });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('access_restrictions')
+      .insert({
+        institution_id: req.user?.institution_id,
+        person_type, person_id, restriction_type, reason,
+        restricted_by: req.user?.id,
+        valid_until: valid_until || null,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, restriction: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getAccessRestrictions(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin
+      .from('access_restrictions')
+      .select('*, users!restricted_by(full_name)')
+      .eq('institution_id', req.user?.institution_id)
+      .eq('is_active', true)
+      .order('created_at', { ascending: false });
+    if (error) throw error;
+    const restrictions = (data || []).map((r: any) => ({
+      ...r,
+      restricted_by_name: r.users?.full_name,
+    }));
+    return res.status(200).json({ success: true, restrictions });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function vehicleEntry(req: Request, res: Response) {
+  try {
+    const { vehicle_number, vehicle_type, driver_name, driver_phone, purpose, gate_number } = req.body;
+    if (!vehicle_number) {
+      return res.status(400).json({ success: false, error: 'vehicle_number required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('vehicle_entry', {
+      p_vehicle_number: vehicle_number,
+      p_vehicle_type: vehicle_type || 'four_wheeler',
+      p_driver_name: driver_name || '',
+      p_driver_phone: driver_phone || '',
+      p_purpose: purpose || '',
+      p_gate_number: gate_number || '1',
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Entry failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function vehicleExit(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabaseAdmin.rpc('vehicle_exit', { p_log_id: id });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Exit failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getVehicleLogs(req: Request, res: Response) {
+  try {
+    const { today } = req.query;
+    let query = supabaseAdmin
+      .from('vehicle_logs')
+      .select('*')
+      .eq('institution_id', req.user?.institution_id)
+      .order('entry_time', { ascending: false });
+
+    if (today === 'true') {
+      query = query.gte('entry_time', new Date().toISOString().split('T')[0]);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return res.status(200).json({ success: true, logs: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getTodaysEventAttendees(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_todays_event_attendees');
+    if (error) throw error;
+    return res.status(200).json({ success: true, attendees: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// DRIVER MODULE CONTROLLERS
+// =========================================================================
+export async function getDriverAssignments(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_driver_assignments');
+    if (error) throw error;
+    return res.status(200).json({ success: true, assignments: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getDriverTodayTrip(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_driver_today_trip');
+    if (error) throw error;
+    return res.status(200).json({ success: true, trip: data?.[0] || null });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function startBusTrip(req: Request, res: Response) {
+  try {
+    const { bus_id, route_id, trip_type } = req.body;
+    if (!bus_id || !route_id) {
+      return res.status(400).json({ success: false, error: 'bus_id and route_id required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('start_bus_trip', {
+      p_bus_id: bus_id,
+      p_route_id: route_id,
+      p_trip_type: trip_type || 'morning',
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Failed to start trip' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function endBusTrip(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { data, error } = await supabaseAdmin.rpc('end_bus_trip', { p_trip_id: id });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Failed to end trip' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getDriverHeadcount(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_driver_route_headcount');
+    if (error) throw error;
+    return res.status(200).json({ success: true, students: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getDriverStopSchedule(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_driver_stop_schedule');
+    if (error) throw error;
+    return res.status(200).json({ success: true, stops: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function markStopReached(req: Request, res: Response) {
+  try {
+    const { stop_index, passengers_boarded, passengers_alighted } = req.body;
+    if (stop_index === undefined) {
+      return res.status(400).json({ success: false, error: 'stop_index required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('mark_stop_reached', {
+      p_stop_index: stop_index,
+      p_passengers_boarded: passengers_boarded || 0,
+      p_passengers_alighted: passengers_alighted || 0,
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Failed to mark stop' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function reportBusIncident(req: Request, res: Response) {
+  try {
+    const { incident_type, description, latitude, longitude, severity } = req.body;
+    if (!incident_type || !description) {
+      return res.status(400).json({ success: false, error: 'incident_type and description required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('report_bus_incident', {
+      p_incident_type: incident_type,
+      p_description: description,
+      p_latitude: latitude || 0,
+      p_longitude: longitude || 0,
+      p_severity: severity || 'high',
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Failed to report incident' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// VENDOR / CANTEEN MODULE CONTROLLERS
+// =========================================================================
+export async function getVendorOrders(req: Request, res: Response) {
+  try {
+    const { status, date } = req.query;
+    let query = supabaseAdmin
+      .from('canteen_orders')
+      .select('*, students(roll_number, users(full_name))')
+      .eq('institution_id', req.user?.institution_id)
+      .order('order_time', { ascending: false });
+
+    if (status) query = query.eq('status', status);
+    if (date) query = query.gte('order_time', date).lt('order_time', `${date}T23:59:59`);
+
+    const { data, error } = await query;
+    if (error) throw error;
+    const orders = (data || []).map((o: any) => ({
+      ...o,
+      student_name: o.students?.users?.full_name,
+      roll_number: o.students?.roll_number,
+    }));
+    return res.status(200).json({ success: true, orders });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function updateOrderStatus(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { status, notes } = req.body;
+    if (!status) {
+      return res.status(400).json({ success: false, error: 'status required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('update_order_status', {
+      p_order_id: id,
+      p_new_status: status,
+      p_notes: notes || '',
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Status update failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function toggleMenuAvailability(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { is_available } = req.body;
+    const { data, error } = await supabaseAdmin.rpc('toggle_menu_availability', {
+      p_menu_id: id,
+      p_is_available: is_available,
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Toggle failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function updateMenuPrice(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { price } = req.body;
+    const { data, error } = await supabaseAdmin.rpc('update_menu_price', {
+      p_menu_id: id,
+      p_new_price: price,
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Price update failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function updateMenuStock(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { stock } = req.body;
+    const { data, error } = await supabaseAdmin.rpc('update_menu_stock', {
+      p_menu_id: id,
+      p_new_stock: stock,
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Stock update failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getVendorDailySales(req: Request, res: Response) {
+  try {
+    const { date } = req.query;
+    const { data, error } = await supabaseAdmin.rpc('get_vendor_daily_sales', {
+      p_date: date || new Date().toISOString().split('T')[0],
+    });
+    if (error) throw error;
+    return res.status(200).json(data?.[0] || { success: false, error: 'Sales report failed' });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getPrepList(req: Request, res: Response) {
+  try {
+    const { date } = req.query;
+    const { data, error } = await supabaseAdmin.rpc('get_canteen_prep_list', {
+      p_date: date || new Date().toISOString().split('T')[0],
+    });
+    if (error) throw error;
+    return res.status(200).json({ success: true, items: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 }

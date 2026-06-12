@@ -1300,3 +1300,91 @@ export async function assignCounselorIntervention(req: Request, res: Response) {
     return res.status(500).json({ success: false, error: err.message });
   }
 }
+
+// =========================================================================
+// NEW: Director KPI RPCs (Migration 20260612000014)
+// =========================================================================
+
+export async function getCampusPulse(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_campus_pulse');
+    if (error) throw error;
+    return res.status(200).json({ success: true, ...data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getFeeRecoveryTracking(req: Request, res: Response) {
+  try {
+    const { semester, department_id } = req.query;
+    const { data, error } = await supabaseAdmin.rpc('get_fee_recovery_tracking', {
+      p_semester: semester ? parseInt(semester as string) : null,
+      p_department_id: department_id || null,
+    });
+    if (error) throw error;
+    return res.status(200).json({ success: true, ...data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getAttendanceTrends(req: Request, res: Response) {
+  try {
+    const { period, department_id, weeks } = req.query;
+    const { data, error } = await supabaseAdmin.rpc('get_attendance_trends', {
+      p_period: (period as string) || 'weekly',
+      p_department_id: department_id || null,
+      p_weeks: weeks ? parseInt(weeks as string) : 12,
+    });
+    if (error) throw error;
+    return res.status(200).json({ success: true, ...data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getComplaintSLA(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_complaint_sla_monitoring');
+    if (error) throw error;
+    return res.status(200).json({ success: true, ...data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getNAACData(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('get_naac_accreditation_data');
+    if (error) throw error;
+    return res.status(200).json({ success: true, ...data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getSystemAnomalies(req: Request, res: Response) {
+  try {
+    const { data, error } = await supabaseAdmin.rpc('detect_system_anomalies');
+    if (error) throw error;
+    return res.status(200).json({ success: true, ...data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function resolveAnomaly(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { resolution_notes } = req.body;
+    const { data, error } = await supabaseAdmin.rpc('resolve_anomaly', {
+      p_anomaly_id: id,
+      p_resolution_notes: resolution_notes || '',
+    });
+    if (error) throw error;
+    return res.status(200).json(data);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}

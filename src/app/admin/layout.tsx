@@ -5,17 +5,24 @@ import PortalShell, { SidebarLink } from '../../components/PortalShell';
 import {
   LayoutDashboard, Users, CalendarDays, CreditCard, ShoppingBag, BookOpen,
   Shield, Dumbbell, Bus, BrainCircuit, ClipboardList, GraduationCap,
-  Home, Bell, Award, FileText, UserCheck, Briefcase, HeartPulse, Settings
+  Home, Bell, Award, FileText, UserCheck, Briefcase, HeartPulse, Settings,
+  Armchair, Package, Link2, AlertTriangle, Calendar, BarChart3, Wand2
 } from 'lucide-react';
 
 const adminLinks: SidebarLink[] = [
   { label: 'Dashboard', href: '/admin/dashboard', icon: LayoutDashboard },
   { label: 'Admissions', href: '/admin/admissions', icon: UserCheck },
+  { label: 'New Admission', href: '/admin/admissions/new', icon: Users },
   { label: 'Students', href: '/admin/students', icon: GraduationCap },
   { label: 'Attendance', href: '/admin/attendance', icon: CalendarDays },
   { label: 'Timetable', href: '/admin/timetable', icon: ClipboardList },
+  { label: 'Timetable Auto', href: '/admin/timetable/auto', icon: Wand2 },
   { label: 'Fees & Finance', href: '/admin/fees', icon: CreditCard },
+  { label: 'Fee Escalation', href: '/admin/fees/escalation', icon: AlertTriangle },
   { label: 'Exams & Results', href: '/admin/exams', icon: FileText },
+  { label: 'Exam Seating', href: '/admin/exam/seating', icon: Armchair },
+  { label: 'Academic Calendar', href: '/admin/calendar', icon: Calendar },
+  { label: 'Defaulter Report', href: '/admin/reports/defaulters', icon: BarChart3 },
   { label: 'Canteen', href: '/admin/canteen', icon: ShoppingBag },
   { label: 'Hostel', href: '/admin/hostel', icon: Home },
   { label: 'Library', href: '/admin/library/bookclubs', icon: BookOpen },
@@ -25,12 +32,17 @@ const adminLinks: SidebarLink[] = [
   { label: 'FitZone Gym', href: '/admin/gym', icon: Dumbbell },
   { label: 'Transit', href: '/admin/transit', icon: Bus },
   { label: 'Events', href: '/admin/events', icon: Award },
+  { label: 'Lost & Found', href: '/admin/lost-found', icon: Package },
   { label: 'Notices', href: '/admin/notices', icon: Bell },
   { label: 'ID Cards', href: '/admin/idcards', icon: Users },
   { label: 'AI Concierge', href: '/admin/ai', icon: BrainCircuit, badge: 'AI' },
   { label: 'OBE Maps', href: '/admin/obe', icon: GraduationCap },
   { label: 'NAAC Scorecard', href: '/admin/naac', icon: Award },
   { label: 'Faculty Dev', href: '/admin/faculty-development', icon: ClipboardList },
+  { label: 'Faculty Portal', href: '/faculty/dashboard', icon: Users },
+  { label: 'Security Portal', href: '/security/dashboard', icon: Shield },
+  { label: 'Driver Portal', href: '/driver/dashboard', icon: Bus },
+  { label: 'Vendor Portal', href: '/vendor/dashboard', icon: ShoppingBag },
   { label: 'Achievements', href: '/admin/achievements', icon: FileText },
   { label: 'Settings', href: '/admin/settings', icon: Settings },
 ];

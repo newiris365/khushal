@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   UtensilsCrossed, Search, Leaf, Flame, Star, Clock, ShoppingCart,
-  Plus, Minus, X, Tag, ChevronRight, Sparkles, ArrowRight
+  Plus, Minus, X, Tag, ChevronRight, Sparkles, ArrowRight, AlertTriangle
 } from 'lucide-react';
 import { apiGet, apiPost } from '../../../lib/api';
 
@@ -16,16 +16,16 @@ const CATEGORIES = [
 ];
 
 const MOCK_MENU = [
-  { id: '1', item_name: 'Masala Dosa', category: 'Meals', price: 80, is_veg: true, is_available: true, calories: 350, prep_time_mins: 12, spice_level: 2, rating_avg: 4.5, description: 'Crispy rice crepe with spiced potato filling, served with sambar & chutney' },
-  { id: '2', item_name: 'Cold Coffee', category: 'Beverages', price: 60, is_veg: true, is_available: true, calories: 180, prep_time_mins: 5, spice_level: 0, rating_avg: 4.7, description: 'Chilled coffee blended with creamy ice cream' },
-  { id: '3', item_name: 'Veg Biryani', category: 'Meals', price: 130, is_veg: true, is_available: true, calories: 520, prep_time_mins: 20, spice_level: 2, rating_avg: 4.2, description: 'Fragrant basmati rice with fresh vegetables and aromatic spices' },
-  { id: '4', item_name: 'Samosa (2pc)', category: 'Snacks', price: 30, is_veg: true, is_available: true, calories: 260, prep_time_mins: 3, spice_level: 1, rating_avg: 4.8, description: 'Crispy fried pastry with spiced potato-pea filling' },
-  { id: '5', item_name: 'Paneer Tikka Roll', category: 'Snacks', price: 120, is_veg: true, is_available: true, calories: 380, prep_time_mins: 10, spice_level: 2, rating_avg: 4.4, description: 'Grilled paneer wrapped in rumali roti with mint chutney' },
-  { id: '6', item_name: 'Chicken Biryani', category: 'Meals', price: 180, is_veg: false, is_available: true, calories: 620, prep_time_mins: 25, spice_level: 3, rating_avg: 4.6, description: 'Dum-cooked aromatic rice with tender chicken pieces' },
-  { id: '7', item_name: 'Gulab Jamun', category: 'Desserts', price: 50, is_veg: true, is_available: true, calories: 290, prep_time_mins: 2, spice_level: 0, rating_avg: 4.3, description: 'Warm milk dumplings soaked in rose-flavored sugar syrup' },
-  { id: '8', item_name: 'Mango Lassi', category: 'Beverages', price: 50, is_veg: true, is_available: true, calories: 200, prep_time_mins: 3, spice_level: 0, rating_avg: 4.6, description: 'Creamy yogurt blended with fresh Alphonso mangoes' },
-  { id: '9', item_name: 'Pav Bhaji', category: 'Meals', price: 90, is_veg: true, is_available: true, calories: 410, prep_time_mins: 15, spice_level: 2, rating_avg: 4.5, description: 'Spiced vegetable mash served with buttery toasted pav' },
-  { id: '10', item_name: 'French Fries', category: 'Snacks', price: 60, is_veg: true, is_available: true, calories: 320, prep_time_mins: 8, spice_level: 1, rating_avg: 4.1, description: 'Golden crispy fries with peri-peri seasoning' },
+  { id: '1', item_name: 'Masala Dosa', category: 'Meals', price: 80, is_veg: true, is_available: true, calories: 350, prep_time_mins: 12, spice_level: 2, rating_avg: 4.5, description: 'Crispy rice crepe with spiced potato filling, served with sambar & chutney', is_daily_special: true, allergens: ['gluten', 'dairy'] },
+  { id: '2', item_name: 'Cold Coffee', category: 'Beverages', price: 60, is_veg: true, is_available: true, calories: 180, prep_time_mins: 5, spice_level: 0, rating_avg: 4.7, description: 'Chilled coffee blended with creamy ice cream', is_daily_special: false, allergens: ['dairy'] },
+  { id: '3', item_name: 'Veg Biryani', category: 'Meals', price: 130, is_veg: true, is_available: true, calories: 520, prep_time_mins: 20, spice_level: 2, rating_avg: 4.2, description: 'Fragrant basmati rice with fresh vegetables and aromatic spices', is_daily_special: false, allergens: [] },
+  { id: '4', item_name: 'Samosa (2pc)', category: 'Snacks', price: 30, is_veg: true, is_available: true, calories: 260, prep_time_mins: 3, spice_level: 1, rating_avg: 4.8, description: 'Crispy fried pastry with spiced potato-pea filling', is_daily_special: false, allergens: ['gluten'] },
+  { id: '5', item_name: 'Paneer Tikka Roll', category: 'Snacks', price: 120, is_veg: true, is_available: true, calories: 380, prep_time_mins: 10, spice_level: 2, rating_avg: 4.4, description: 'Grilled paneer wrapped in rumali roti with mint chutney', is_daily_special: false, allergens: ['dairy', 'gluten'] },
+  { id: '6', item_name: 'Chicken Biryani', category: 'Meals', price: 180, is_veg: false, is_available: true, calories: 620, prep_time_mins: 25, spice_level: 3, rating_avg: 4.6, description: 'Dum-cooked aromatic rice with tender chicken pieces', is_daily_special: false, allergens: [] },
+  { id: '7', item_name: 'Gulab Jamun', category: 'Desserts', price: 50, is_veg: true, is_available: true, calories: 290, prep_time_mins: 2, spice_level: 0, rating_avg: 4.3, description: 'Warm milk dumplings soaked in rose-flavored sugar syrup', is_daily_special: false, allergens: ['dairy', 'nuts'] },
+  { id: '8', item_name: 'Mango Lassi', category: 'Beverages', price: 50, is_veg: true, is_available: true, calories: 200, prep_time_mins: 3, spice_level: 0, rating_avg: 4.6, description: 'Creamy yogurt blended with fresh Alphonso mangoes', is_daily_special: false, allergens: ['dairy'] },
+  { id: '9', item_name: 'Pav Bhaji', category: 'Meals', price: 90, is_veg: true, is_available: true, calories: 410, prep_time_mins: 15, spice_level: 2, rating_avg: 4.5, description: 'Spiced vegetable mash served with buttery toasted pav', is_daily_special: false, allergens: ['gluten'] },
+  { id: '10', item_name: 'French Fries', category: 'Snacks', price: 60, is_veg: true, is_available: true, calories: 320, prep_time_mins: 8, spice_level: 1, rating_avg: 4.1, description: 'Golden crispy fries with peri-peri seasoning', is_daily_special: false, allergens: [] },
 ];
 
 const spiceLabels = ['', '🌶️', '🌶️🌶️', '🌶️🌶️🌶️'];
@@ -42,6 +42,8 @@ export default function StudentCanteenMenu() {
   const [activeCategory, setActiveCategory] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [vegOnly, setVegOnly] = useState(false);
+  const [excludeAllergens, setExcludeAllergens] = useState<string[]>([]);
+  const [showAllergenFilter, setShowAllergenFilter] = useState(false);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [showCart, setShowCart] = useState(false);
   const [promoCode, setPromoCode] = useState('');
@@ -59,11 +61,14 @@ export default function StudentCanteenMenu() {
     } catch (err) { console.log('Using mock menu'); }
   };
 
+  const ALLERGEN_OPTIONS = ['dairy', 'gluten', 'nuts', 'soy', 'eggs', 'shellfish'];
+
   const filtered = menu.filter(item => {
     const matchCat = activeCategory === 'all' || item.category === activeCategory;
     const matchSearch = item.item_name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchVeg = !vegOnly || item.is_veg;
-    return matchCat && matchSearch && matchVeg && item.is_available;
+    const matchAllergens = excludeAllergens.length === 0 || !item.allergens?.some((a: string) => excludeAllergens.includes(a));
+    return matchCat && matchSearch && matchVeg && matchAllergens && item.is_available;
   });
 
   const addToCart = (item: any) => {
@@ -167,7 +172,39 @@ export default function StudentCanteenMenu() {
           >
             <Leaf className="w-3.5 h-3.5" /> Veg Only
           </button>
+
+          <button
+            onClick={() => setShowAllergenFilter(!showAllergenFilter)}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold border transition-all whitespace-nowrap ${
+              excludeAllergens.length > 0
+                ? 'bg-orange-500/20 border-orange-500/40 text-orange-400'
+                : 'bg-white/5 border-white/10 text-[#C4B5FD]/50'
+            }`}
+          >
+            <AlertTriangle className="w-3.5 h-3.5" /> Allergens {excludeAllergens.length > 0 && `(${excludeAllergens.length})`}
+          </button>
         </div>
+
+        {/* Allergen Filter Panel */}
+        {showAllergenFilter && (
+          <div className="glass-panel rounded-xl p-4 border border-orange-500/20 flex flex-col gap-2">
+            <span className="text-xs font-bold text-orange-400">Exclude allergens:</span>
+            <div className="flex flex-wrap gap-2">
+              {ALLERGEN_OPTIONS.map(a => (
+                <button key={a} onClick={() => {
+                  setExcludeAllergens(prev => prev.includes(a) ? prev.filter(x => x !== a) : [...prev, a]);
+                }}
+                  className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
+                    excludeAllergens.includes(a)
+                      ? 'bg-orange-500/20 border-orange-500/40 text-orange-400'
+                      : 'bg-white/5 border-white/10 text-[#C4B5FD]/50 hover:text-white'
+                  }`}>
+                  {a}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* ── Menu Grid ──────────────────────────────────────── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -179,7 +216,14 @@ export default function StudentCanteenMenu() {
                 <div className="h-32 bg-gradient-to-br from-[#6C2BD9]/15 to-[#13102A] flex items-center justify-center relative">
                   <UtensilsCrossed className="w-8 h-8 text-[#6C2BD9]/20" />
 
-                  <div className="absolute top-3 left-3 flex gap-1.5">
+                  {/* Today's Special Badge */}
+                  {item.is_daily_special && (
+                    <span className="absolute top-2 left-2 px-2 py-0.5 rounded-lg bg-yellow-500/20 border border-yellow-500/30 text-[9px] font-bold text-yellow-400 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" /> Today&apos;s Special
+                    </span>
+                  )}
+
+                  <div className="absolute top-2 right-2 flex gap-1.5">
                     {item.is_veg ? (
                       <span className="w-5 h-5 rounded bg-emerald-500/20 border border-emerald-500/30 flex items-center justify-center">
                         <Leaf className="w-3 h-3 text-emerald-400" />
@@ -190,7 +234,7 @@ export default function StudentCanteenMenu() {
                   </div>
 
                   {item.spice_level > 0 && (
-                    <span className="absolute top-3 right-3 text-xs">{spiceLabels[item.spice_level]}</span>
+                    <span className="absolute bottom-2 right-3 text-xs">{spiceLabels[item.spice_level]}</span>
                   )}
                 </div>
 
@@ -212,6 +256,17 @@ export default function StudentCanteenMenu() {
                     </span>
                     <span className="text-[10px] text-[#C4B5FD]/40">{item.calories} kcal</span>
                   </div>
+
+                  {/* Allergen badges */}
+                  {item.allergens && item.allergens.length > 0 && (
+                    <div className="flex flex-wrap gap-1">
+                      {item.allergens.map((a: string) => (
+                        <span key={a} className="px-1.5 py-0.5 rounded text-[8px] font-bold bg-orange-500/10 border border-orange-500/20 text-orange-400/70">
+                          {a}
+                        </span>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Add to Cart */}
                   <div className="mt-1">

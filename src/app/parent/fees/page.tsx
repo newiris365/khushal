@@ -12,29 +12,30 @@ export default function ParentFeesPage() {
   const [isPaying, setIsPaying] = useState<string | null>(null);
 
   useEffect(() => {
-    // Sandbox student profile ID
-    apiGet('/core/fees/student/b0000000-0000-0000-0000-000000000006').then(res => {
-      if (res.success) {
-        setStructures(res.structures || [
-          { id: "str-01", name: "Odd Sem Tuition Fee", amount: 65000, due_date: "2026-06-30" },
-          { id: "str-02", name: "Hostel Rent (B1)", amount: 35000, due_date: "2026-06-15" }
-        ]);
-        setPayments(res.payments || [
-          { id: "pay-01", fee_structure_id: "str-02", amount_paid: 35000, payment_date: "2026-06-01", transaction_id: "pay_rzp_mock123", status: "Completed", receipt_url: "#" }
-        ]);
-        setConcessions(res.concessions || [
-          { id: "con-01", fee_structure_id: "str-01", concession_type: "Merit Scholarship", amount: 15000 }
-        ]);
+    // First get linked child info, then fetch fees
+    apiGet('/core/parent/child-info').then(childRes => {
+      if (childRes.success && childRes.child?.student_id) {
+        childIdRef = childRes.child.student_id;
+        return apiGet(`/core/fees/student/${childRes.child.student_id}`);
+      }
+      return null;
+    }).then(res => {
+      if (res?.success) {
+        setStructures(res.structures || []);
+        setPayments(res.payments || []);
+        setConcessions(res.concessions || []);
       }
       setIsLoading(false);
-    });
+    }).catch(() => setIsLoading(false));
   }, []);
+
+  let childIdRef = '';
 
   const handlePay = async (structure: any) => {
     setIsPaying(structure.id);
     try {
       const initRes = await apiPost('/core/fees/payment/initiate', {
-        student_id: 'b0000000-0000-0000-0000-000000000006',
+        student_id: childIdRef,
         fee_structure_id: structure.id,
         amount: structure.amount
       });
@@ -45,7 +46,7 @@ export default function ParentFeesPage() {
         razorpay_order_id: initRes.order_id,
         razorpay_payment_id: 'pay_rzp_' + Math.random().toString(36).substring(2, 12),
         razorpay_signature: 'sig_mock_verification_hash',
-        student_id: 'b0000000-0000-0000-0000-000000000006',
+        student_id: childIdRef,
         fee_structure_id: structure.id,
         amount_paid: structure.amount
       });

@@ -60,7 +60,7 @@ const ROLE_COLORS: Record<string, string> = {
   Director: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
 };
 
-type Tab = 'tenants' | 'features' | 'permissions';
+type Tab = 'tenants' | 'permissions';
 
 export default function SuperAdminConsole() {
   const [institutions, setInstitutions] = useState<Institution[]>([]);
@@ -292,7 +292,6 @@ export default function SuperAdminConsole() {
 
   const tabs: { key: Tab; label: string; icon: React.ReactNode }[] = [
     { key: 'tenants', label: 'Tenants', icon: <Building className="w-4 h-4" /> },
-    { key: 'features', label: 'Feature Toggles', icon: <ToggleRight className="w-4 h-4" /> },
     { key: 'permissions', label: 'Role Permissions', icon: <Sliders className="w-4 h-4" /> },
   ];
 
@@ -523,77 +522,6 @@ export default function SuperAdminConsole() {
         )}
 
         {/* ============================================================ */}
-        {/* TAB: FEATURE TOGGLES */}
-        {/* ============================================================ */}
-        {activeTab === 'features' && (
-          <div className="glass-panel rounded-2xl border border-white/5 p-6 flex flex-col gap-5">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-              <div>
-                <h2 className="text-lg font-bold">Feature Toggles</h2>
-                <p className="text-[11px] text-[#C4B5FD]/60 mt-0.5">Enable or disable modules for each institution. Disabled modules are hidden from navigation and blocked at the API level.</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <select value={selectedInstForFeatures} onChange={(e) => {
-                  setSelectedInstForFeatures(e.target.value);
-                  loadFeatures(e.target.value);
-                }}
-                  className="bg-black/40 border border-white/10 rounded-xl px-4 py-2.5 text-white text-xs outline-none focus:border-violet-500 min-w-[200px]">
-                  <option value="">Select Institution...</option>
-                  {institutions.map(inst => (
-                    <option key={inst.id} value={inst.id}>{inst.name}</option>
-                  ))}
-                </select>
-                {selectedInstForFeatures && featureToggles.length > 0 && (
-                  <button onClick={handleSaveFeatures} disabled={featuresSaving}
-                    className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-[#8B5CF6] hover:brightness-110 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-violet-600/25 transition-all disabled:opacity-50">
-                    <Save className="w-4 h-4" /> {featuresSaving ? 'Saving...' : 'Save Changes'}
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {!selectedInstForFeatures && (
-              <div className="py-16 text-center text-[#C4B5FD]/40 italic text-sm">
-                Select an institution above to manage its feature toggles.
-              </div>
-            )}
-
-            {selectedInstForFeatures && featuresLoading && (
-              <div className="py-16 text-center text-[#C4B5FD]/40 italic text-sm">Loading features...</div>
-            )}
-
-            {selectedInstForFeatures && !featuresLoading && featureToggles.length > 0 && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                {featureToggles.map(feat => (
-                  <div key={feat.feature_key}
-                    className={`flex items-center justify-between p-4 rounded-xl border transition-all cursor-pointer ${
-                      feat.enabled
-                        ? 'bg-emerald-500/5 border-emerald-500/20 hover:bg-emerald-500/10'
-                        : 'bg-red-500/5 border-red-500/20 hover:bg-red-500/10'
-                    }`}
-                    onClick={() => handleToggleFeature(feat.feature_key)}>
-                    <div className="flex items-center gap-3">
-                      <div className={`w-8 h-8 rounded-lg flex items-center justify-center ${
-                        feat.enabled ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'
-                      }`}>
-                        {feat.enabled ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
-                      </div>
-                      <div>
-                        <span className="text-xs font-semibold text-white block">{FEATURE_LABELS[feat.feature_key] || feat.feature_key}</span>
-                        <span className="text-[10px] text-[#C4B5FD]/50">{feat.enabled ? 'Enabled' : 'Disabled'}</span>
-                      </div>
-                    </div>
-                    <div className={`w-10 h-5 rounded-full transition-all relative ${feat.enabled ? 'bg-emerald-500' : 'bg-red-500/40'}`}>
-                      <div className={`w-4 h-4 rounded-full bg-white absolute top-0.5 transition-all ${feat.enabled ? 'left-5.5' : 'left-0.5'}`}
-                        style={{ left: feat.enabled ? '22px' : '2px' }} />
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-
         {/* ============================================================ */}
         {/* TAB: ROLE PERMISSIONS */}
         {/* ============================================================ */}

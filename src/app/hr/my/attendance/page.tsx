@@ -1,8 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import Link from 'next/font/google'; // Wait, standard Next Link is from 'next/link'. Let me make sure it is correct.
-import LinkComponent from 'next/link';
+import Link from 'next/link';
 import { ChevronLeft, Info, HelpCircle, Calendar, Plus, RefreshCw } from 'lucide-react';
 
 interface AttendanceDay {
@@ -86,9 +85,9 @@ export default function EmployeeAttendance() {
     <div className="max-w-7xl mx-auto py-2 w-full flex flex-col gap-6">
       {/* Back link */}
       <div>
-        <LinkComponent href="/hr/my/dashboard" className="inline-flex items-center gap-1.5 text-xs text-[#C4B5FD] hover:text-white transition-all">
+        <Link href="/hr/my/dashboard" className="inline-flex items-center gap-1.5 text-xs text-[#C4B5FD] hover:text-white transition-all">
           <ChevronLeft className="w-4 h-4" /> Back to Dashboard
-        </LinkComponent>
+        </Link>
       </div>
 
       {/* Header Banner */}
