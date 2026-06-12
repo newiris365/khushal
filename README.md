@@ -1,95 +1,197 @@
 # IRIS 365 — AI-Powered Campus Operating System
 
-IRIS 365 is a production-ready, multi-tenant campus management SaaS platform designed for Indian educational institutions. Built for **SIN Education and Technology Pvt. Ltd. (Jodhpur, Rajasthan)**, it integrates 10 comprehensive campus operational modules under a unified, high-performance architecture.
+IRIS 365 is a production-ready, multi-tenant campus management SaaS platform designed for Indian educational institutions. Built for **SIN Education and Technology Pvt. Ltd. (Jodhpur, Rajasthan)**, it integrates 11 comprehensive role-based portals under a unified, high-performance architecture.
 
 ---
 
-## 🚀 Key Modules
-1. **Campus Core**: Rotating QR & Biometric Smart Attendance, automated Digital ID Cards, Timetable auto-scheduler, Fee structures, and Exam Results.
-2. **Canteen (Cashless)**: QR orders, Express Pickup notifications, meal pass subscriptions, and a virtual Campus Wallet.
-3. **Hostel Warden Desk**: Block-specific room allocations, maintenance complain registry, and warden authorization controls.
-4. **Smart Gate Security**: RFID/QR entry loggers, visitor passes, and security incident logs.
-5. **Library+**: Stock ledger, atomic book lending, and overdue fine calculators.
-6. **Events Hub**: Public registrations, tickets, coordinator tasks, and volunteer listings.
-7. **FitZone (Wellness)**: Gym membership plans, equipment maintenance logs, and fitness slot booking.
-8. **Transit GPS Tracker**: Live location mapping, stops timelines, and route mapping.
-9. **Director Dashboard**: Comprehensive operational statistics, fee recovery trends, and system anomaly flags.
-10. **AI Concierge**: Smart helper for academic queries, timetables, and fee receipts.
+## 🎨 System Architecture & Connectivity Flow
 
----
+The following flowchart illustrates the request pipeline, real-time sync layer, and database protection layers of IRIS 365:
 
-## 🎨 System Architecture
+```mermaid
+graph TD
+    %% Clients
+    classDef client fill:#1E1B4B,stroke:#818CF8,stroke-width:2px,color:#fff;
+    classDef server fill:#111827,stroke:#10B981,stroke-width:2px,color:#fff;
+    classDef database fill:#064E3B,stroke:#34D399,stroke-width:2px,color:#fff;
+    classDef realTime fill:#7C2D12,stroke:#F97316,stroke-width:2px,color:#fff;
 
-IRIS 365 features a **unified single-root layout** that avoids dependency duplication and workspace hoisting conflicts.
+    subgraph UserPortals ["User Portals (Next.js 14 App Router)"]
+        A["Admin Portal"]:::client
+        B["Student Portal"]:::client
+        C["Teacher Portal"]:::client
+        D["Parent Portal"]:::client
+        E["Warden Portal"]:::client
+        F["Gate Portal"]:::client
+        G["Librarian Portal"]:::client
+        H["Canteen Vendor"]:::client
+        I["Company Recruiter"]:::client
+        J["Applicant Portal"]:::client
+    end
 
+    %% Network Routing
+    Netlify["Netlify Edge (Frontend)"]:::server
+    ExpressAPI["Express API Server (Port 4000)"]:::server
+    SocketServer["Socket.io Server (Real-time Hub)"]:::realTime
+    SupabaseDB[("Supabase (PostgreSQL Database)")]:::database
+
+    %% Client Routing
+    UserPortals -->|Static Assets / Page Loads| Netlify
+    UserPortals -->|API Requests (/api/v1/*)| Netlify
+    Netlify -->|Reverse Proxy Rewrite| ExpressAPI
+
+    %% Express Server Middleware Pipeline
+    subgraph ExpressPipeline ["Express Request Execution Pipeline"]
+        AuthMid["Auth Middleware<br/>(JWT Decryption)"]:::server
+        FingerprintMid["Device Fingerprint Verification<br/>(User-Agent + Subnet Hash)"]:::server
+        PermissionMid["Permission Enforcer<br/>(Role-Based Access Control)"]:::server
+        Controller["Express Module Controllers<br/>(Core Business Logic)"]:::server
+
+        AuthMid --> FingerprintMid
+        FingerprintMid --> PermissionMid
+        PermissionMid --> Controller
+    end
+
+    ExpressAPI --> AuthMid
+
+    %% Database Connections
+    Controller -->|Admin Actions<br/>Service Role Key Bypass RLS| SupabaseDB
+    UserPortals -->|Direct Scope Queries<br/>Anon Public Key + RLS| SupabaseDB
+
+    %% Real-time connection
+    UserPortals <-->|WebSocket Connection| SocketServer
+    ExpressAPI <-->|Trigger Broadcasts| SocketServer
+
+    %% Database Locking Mechanism
+    subgraph DatabaseSafeguards ["Database Concurrency Control"]
+        RLS["Row Level Security (RLS) Rules"]:::database
+        RPC["Atomic PL/pgSQL Stored Procedures<br/>(FOR UPDATE Locks)"]:::database
+        
+        RLS --> RPC
+    end
+    SupabaseDB --- DatabaseSafeguards
 ```
-/new iris (root)
-├── src/
-│   ├── app/                    # Next.js 14 Frontend App Router (Obsidian Dark Theme)
-│   ├── lib/                    # Client-side API wrappers & Socket.io connections
-│   ├── config/                 # Express backend config (Winston logger, Supabase clients)
-│   ├── controllers/            # Express controllers (business logic)
-│   ├── middleware/             # Express middlewares (Rate limiting, auth fingerprint check)
-│   ├── routes/                 # Express REST endpoint routing
-│   └── server.ts               # Express Server & Socket.io setup (Port 4000)
-├── supabase/
-│   ├── migrations/             # SQL Migrations (Tables, Indexes, hard RLS, atomic RPCs)
-│   └── seed.sql                # Mock sandbox dataset with preconfigured test credentials
-├── supabase_setup.sql          # Unified Setup Script (ready to paste in Supabase SQL editor)
-├── package.json                # Single dependency tree controlling both Next.js & Express
-└── tsconfig.json               # Shared TypeScript environment
+
+---
+
+## 🚀 Portals & Modules Breakdown
+
+The project features a **unified single-root layout** where both frontend pages and backend endpoints share a single repository and dependency manager.
+
+### 🏢 Portal Registry
+| Role / Portal | Frontend Routes Directory | Primary Functionalities |
+| :--- | :--- | :--- |
+| **SuperAdmin & Admin** | [src/app/admin](file:///c:/Users/khushal/Desktop/new%20iris/src/app/admin) | Global configurations, global user directory, admissions cycles, analytics CRM. |
+| **Student** | [src/app/student](file:///c:/Users/khushal/Desktop/new%20iris/src/app/student) | Digital ID Card verification, attendance logs, timetables, fee dues payment, FitZone slot booking. |
+| **Teacher** | [src/app/teacher](file:///c:/Users/khushal/Desktop/new%20iris/src/app/teacher) | Direct attendance registry, course schedules, OBE (Outcome-Based Education) attainment. |
+| **Parent** | [src/app/parent](file:///c:/Users/khushal/Desktop/new%20iris/src/app/parent) | Student attendance tracking, academic term reports, parent-teacher scheduler, fee billing logs. |
+| **Director / Management** | [src/app/director](file:///c:/Users/khushal/Desktop/new%20iris/src/app/director) | Institutional P&L reports, campus goals roadmap, NAAC/NIRF indicators, operations summaries. |
+| **Hostel Warden** | [src/app/warden](file:///c:/Users/khushal/Desktop/new%20iris/src/app/warden) | Room allocations, curfew rollcalls, student complaint loggers, visitor control boards. |
+| **Librarian** | [src/app/librarian](file:///c:/Users/khushal/Desktop/new%20iris/src/app/librarian) | Stock index logs, book issue/return tracking, automatic fine collection triggers. |
+| **Canteen Vendor** | [src/app/vendor/canteen](file:///c:/Users/khushal/Desktop/new%20iris/src/app/vendor/canteen) | Inventory stock manager, active queue tickers, menu planners, wallet transaction metrics. |
+| **Company Recruiter** | [src/app/company](file:///c:/Users/khushal/Desktop/new%20iris/src/app/company) | Direct placement drive creator, schedule interviewer pools, shortlist applicants. |
+| **Campus Gate Security** | [src/app/gate](file:///c:/Users/khushal/Desktop/new%20iris/src/app/gate) | RFID/QR entry loggers, visitor pass creator, security alerts & blacklist scanner. |
+| **Applicant / Candidate** | [src/app/applicant](file:///c:/Users/khushal/Desktop/new%20iris/src/app/applicant) | Admissions status checklist, online application, fee gateway sandbox, document upload tool. |
+
+---
+
+## ⚙️ Concurrency & Race-Condition Protections
+
+To handle highly concurrent actions (such as library book borrow, gym slot booking, and hostel bed allocations), IRIS 365 executes critical operations through atomic database procedures written in PL/pgSQL. 
+
+The diagram below details the locking pattern used in [book_gym_slot_atomic](file:///c:/Users/khushal/Desktop/new%20iris/supabase_setup.sql):
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor UserA as Student A
+    actor UserB as Student B
+    participant DB as Supabase PostgreSQL
+    
+    Note over UserA, UserB: Both attempt to book the last available Gym Slot simultaneously
+    
+    par Student A Request
+        UserA->>DB: CALL book_gym_slot_atomic(slot_id, student_id)
+    and Student B Request
+        UserB->>DB: CALL book_gym_slot_atomic(slot_id, student_id)
+    end
+    
+    activate DB
+    Note over DB: Transaction 1 acquires EXCLUSIVE ROW LOCK (FOR UPDATE)
+    Note over DB: Transaction 2 is BLOCKED and waits on Transaction 1
+    
+    DB->>DB: Check current capacity (booked_slots < total_capacity)
+    DB->>DB: Update capacity: booked_slots = booked_slots + 1
+    DB->>DB: Insert booking record
+    DB->>UserA: Return SUCCESS (Slot Confirmed)
+    Note over DB: Transaction 1 Commits. Lock Released.
+    
+    Note over DB: Transaction 2 wakes up and acquires ROW LOCK
+    DB->>DB: Check current capacity (booked_slots = total_capacity)
+    DB->>UserB: Raise Exception: "Slot is fully booked"
+    Note over DB: Transaction 2 Rollback
+    deactivate DB
 ```
 
 ---
 
-## ⚙️ Setup & Installation
+## ⚙️ Setup & Deployment
 
-### 1. Prerequisite Environment Variables
-Create a `.env` file at the root directory (`/new iris/.env`). Refer to [.env.example](file:///c:/Users/khushal/Desktop/new%20iris/.env.example) for structure:
+### 1. Environment Configurations
+Create a `.env` file at your root directory (`/new iris/.env`) modeled after [.env.example](file:///c:/Users/khushal/Desktop/new%20iris/.env.example):
 
 ```env
 PORT=4000
-NODE_ENV=development
-SUPABASE_URL=https://your-project-ref.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-supabase-service-role-secret-key
-JWT_SECRET=your-jwt-secret-min-32-chars
+NODE_ENV=production
 
-NEXT_PUBLIC_SUPABASE_URL=https://your-project-ref.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-public-key
-NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
+# Supabase Configurations
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=your-administrative-service-role-key
+JWT_SECRET=your-jwt-signing-secret-key-min-32-chars
+
+# Client/Frontend Configurations
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anonymous-public-key
+NEXT_PUBLIC_API_URL=https://your-express-backend.com/api/v1
 ```
 
+> [!WARNING]
+> The Express backend requires `SUPABASE_SERVICE_ROLE_KEY` to run user synchronization tasks, execute database migrations, and handle cashless payment verifications. Keep this key hidden and never expose it to client-side scripts.
+
+---
+
+### 2. Database Initialization
+A unified script is provided to spin up your database instance in a single step:
+1. Open the [supabase_setup.sql](file:///c:/Users/khushal/Desktop/new%20iris/supabase_setup.sql) file.
+2. Copy its entire content.
+3. Open your project on the [Supabase Dashboard](https://supabase.com/dashboard).
+4. Go to **SQL Editor** -> **New Query**, paste the script, and press **Run**.
+
+---
+
+### 3. Netlify Deployment Environment
+
+This project is optimized for deployment on Netlify. When deploying to Netlify, configure the build settings as follows:
+
+1. **Build Command**: `npm run build`
+2. **Publish Directory**: `.next`
+3. **Environment Variables**:
+   * Set `NODE_VERSION` to `20` (or `22`).
+   * Set `NODE_ENV` to `production`.
+
 > [!IMPORTANT]
-> **Why the Service Role Key is required**: The Express backend uses the `SUPABASE_SERVICE_ROLE_KEY` to initialize an administrative Supabase client. This client is used to securely synchronize users, update system-wide balances, and check statuses by bypassing Row Level Security (RLS) policies on specific endpoints. Do **not** use the public `anon` key for `SUPABASE_SERVICE_ROLE_KEY` in production.
+> **Why `NODE_ENV=production` is required**: If Netlify runs the build command with `NODE_ENV` set to `development` in the environment variables, Next.js tries to compile the application under development/diagnostic modes. This causes pre-render steps for error fallback pages (`/404` and `/500`) to crash with a `Html should not be imported outside of pages/_document` error. Ensuring `NODE_ENV=production` is enforced under `[build.environment]` inside [netlify.toml](file:///c:/Users/khushal/Desktop/new%20iris/netlify.toml) prevents this compiler crash.
 
 ---
 
-### 2. Database Initialization (Supabase Cloud)
-
-We provide a consolidated SQL setup script to initialize your database structure in a single click:
-
-1. Open **[supabase_setup.sql](file:///c:/Users/khushal/Desktop/new%20iris/supabase_setup.sql)** in your editor.
-2. Select all (`Ctrl + A`) and copy the contents.
-3. Log in to your [Supabase Console](https://supabase.com/dashboard) and navigate to the **SQL Editor** tab of your project.
-4. Click **New Query**, paste the code, and click **Run**.
-
-This script automates:
-- Building **45 relation tables** and optimized search indexing.
-- Creating **atomic database RPCs** (stored procedures) that lock rows during writes to prevent race conditions (e.g., library checkouts, gym reservations, and hostel room booking concurrency).
-- Implementing **hardened multi-tenant Row Level Security (RLS)**.
-- Seeding mock institution data, courses, timetables, active routes, and users.
-
----
-
-### 3. Launching the Project Locally
-
-To install dependencies and boot both the Next.js frontend (Port 3000) and Express server (Port 4000) concurrently:
+### 4. Running Locally
+To launch both the Next.js development server (Port 3000) and the Express API server (Port 4000) concurrently:
 
 ```bash
-# 1. Install dependencies
+# Install packages
 npm install
 
-# 2. Run local development servers
+# Run frontend & backend dev servers concurrently
 npm run dev
 ```
 
@@ -97,38 +199,11 @@ npm run dev
 
 ## 🔒 Advanced Security Implementations
 
-### 1. Stateless Session-Hijacking Protection (Device Fingerprinting)
-During login, the Express auth system generates a SHA-256 device fingerprint signature binding:
-- The client's **User-Agent** header
-- The client's **IP Address (subnet segment)** to avoid logout drops during mobile network carrier switches.
+1. **Session Hijacking Guard (Device Fingerprinting)**: 
+   At session creation, the backend signs a SHA-256 device signature inside the user's JWT based on the browser's user-agent and IP network subnet. If a token is stolen and replayed from a different client configuration, the request fails with `403 Forbidden`.
+   
+2. **Hardened Multi-Tenant Row Level Security**: 
+   Database tables are enforced with strict multi-tenant tenant isolates. For example, hostel wardens can only access records scoped to blocks where they are assigned (`auth.uid() = hb.warden_id`), and students are locked to reading only their own records.
 
-This fingerprint is signed directly inside the JWT payload. On every request, the authorization middleware ([auth.ts](file:///c:/Users/khushal/Desktop/new%20iris/src/middleware/auth.ts)) recalculates the current client's device fingerprint. If it differs from the claim (e.g., token was stolen and replay-attacked on another machine), the session is invalidated immediately (`403 Forbidden`).
-
-### 2. Database Race-Condition Protections (PL/pgSQL RPCs)
-High-concurrency updates (such as book checkouts, gym slot bookings, and room allocations) are wrapped inside custom SQL stored procedures with transaction safeguards (`FOR UPDATE` row locks).
-If three students try to reserve the last remaining gym slot at the same time:
-- The procedure [book_gym_slot_atomic](file:///c:/Users/khushal/Desktop/new%20iris/supabase_setup.sql#L947) updates the capacity check and increments booking atomically.
-- Only the first transaction succeeds; the other two fail gracefully on database constraint triggers, avoiding double-allocations.
-
-### 3. Role-Based RLS Hardening
-Access parameters are restricted at the database level:
-- **Warden Scope Policy**: Wardens can only fetch room details, assign occupants, or view complaints within the blocks they explicitly govern (`auth.uid() = hb.warden_id`).
-- **Student Scope Policy**: Students are isolated to reading their own profiles, records, classes, and tickets.
-- **Security Scope Policy**: Only users logged in under the `Security` role claim can write entries to gate check-in logs.
-
----
-
-## 🛠️ Build Commands
-
-Verify compiler status using:
-
-```bash
-# Build the Express TypeScript server
-npm run build:backend
-
-# Build the Next.js production bundle
-npm run build:frontend
-
-# Complete full-stack compiler validation
-npm run build
-```
+3. **API Protection Layers**:
+   Enforced with `helmet` header shielding, strict `cors` white-listing, and request rate limiting to defend against brute force vectors on auth-endpoints.

@@ -1,13 +1,21 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Settings, Save, CheckCircle2, Sliders, ToggleLeft, ToggleRight, Loader2, Database } from 'lucide-react';
+import { Settings, Save, CheckCircle2, Sliders, ToggleLeft, ToggleRight, Loader2, Database, AlertTriangle, ExternalLink } from 'lucide-react';
 import { 
   getFeatureToggles, setFeatureToggles,
   getRolePermissions, setRolePermissions,
   seedPermissions,
   type FeatureToggle, type ModulePermission 
 } from '../../../lib/api';
+
+const ALL_FEATURES = [
+  'dashboard', 'admissions', 'students', 'attendance', 'timetable',
+  'fees', 'exams', 'canteen', 'hostel', 'library', 'placements',
+  'hr', 'gate', 'gym', 'transit', 'events', 'notices', 'idcards',
+  'ai_concierge', 'obe', 'naac', 'faculty_development', 'achievements',
+  'director', 'parent_portal'
+];
 
 const FEATURE_LABELS: Record<string, string> = {
   dashboard: 'Dashboard', admissions: 'Admissions', students: 'Students',
@@ -33,24 +41,48 @@ const FEATURE_ICONS: Record<string, string> = {
 
 type Tab = 'features' | 'permissions';
 
+const SEED_SQL = `-- Run this in Supabase SQL Editor to seed defaults
+-- Replace YOUR_INSTITUTION_ID with your actual institution UUID
+
+INSERT INTO institution_features (institution_id, feature_key, enabled)
+SELECT 'YOUR_INSTITUTION_ID', f.feature_key, true
+FROM (VALUES
+  ('dashboard'), ('admissions'), ('students'), ('attendance'), ('timetable'),
+  ('fees'), ('exams'), ('canteen'), ('hostel'), ('library'), ('placements'),
+  ('hr'), ('gate'), ('gym'), ('transit'), ('events'), ('notices'), ('idcards'),
+  ('ai_concierge'), ('obe'), ('naac'), ('faculty_development'), ('achievements'),
+  ('director'), ('parent_portal')
+) AS f(feature_key)
+ON CONFLICT (institution_id, feature_key) DO NOTHING;
+
+INSERT INTO module_permissions (institution_id, role, module, can_read, can_write, can_delete)
+SELECT 'YOUR_INSTITUTION_ID', 'Admin', m.module, true, true, true
+FROM (VALUES
+  ('dashboard'), ('admissions'), ('students'), ('attendance'), ('timetable'),
+  ('fees'), ('exams'), ('canteen'), ('hostel'), ('library'), ('placements'),
+  ('hr'), ('gate'), ('gym'), ('transit'), ('events'), ('notices'), ('idcards'),
+  ('ai_concierge'), ('obe'), ('naac'), ('faculty_development'), ('achievements'),
+  ('director'), ('parent_portal')
+) AS m(module)
+ON CONFLICT (institution_id, role, module) DO NOTHING;`;
+
 export default function AdminSettingsPage() {
   const [institutionId, setInstitutionId] = useState('');
   const [activeTab, setActiveTab] = useState<Tab>('features');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isSeeding, setIsSeeding] = useState(false);
-  const [hasData, setHasData] = useState(false);
+  const [backendAvailable, setBackendAvailable] = useState<boolean | null>(null);
 
   // Feature toggles
   const [features, setFeatures] = useState<FeatureToggle[]>([]);
-  const [featuresLoading, setFeaturesLoading] = useState(false);
 
   // Role permissions
   const [rolePerms, setRolePerms] = useState<ModulePermission[]>([]);
   const [allRoles, setAllRoles] = useState<string[]>([]);
   const [allModules, setAllModules] = useState<string[]>([]);
   const [selectedRole, setSelectedRole] = useState('');
-  const [permsLoading, setPermsLoading] = useState(false);
+  const [showSqlModal, setShowSqlModal] = useState(false);
 
   useEffect(() => {
     const profile = localStorage.getItem('iris_user_profile');
@@ -70,42 +102,27 @@ export default function AdminSettingsPage() {
     if (!institutionId) { setIsLoading(false); return; }
     setIsLoading(true);
     try {
-      await Promise.all([loadFeatures(), loadPermissions()]);
+      const [featResult, permResult] = await Promise.all([
+        getFeatureToggles(institutionId).catch(() => null),
+        getRolePermissions(institutionId).catch(() => null)
+      ]);
+
+      const backendUp = featResult?.success || permResult?.success;
+      setBackendAvailable(backendUp);
+
+      if (featResult?.success && featResult.features) {
+        setFeatures(featResult.features);
+      }
+      if (permResult?.success) {
+        setRolePerms(permResult.permissions || []);
+        setAllRoles(permResult.all_roles || []);
+        setAllModules(permResult.all_modules || []);
+        if (permResult.all_roles?.length > 0) setSelectedRole(permResult.all_roles[0]);
+      }
+    } catch {
+      setBackendAvailable(false);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const loadFeatures = async () => {
-    setFeaturesLoading(true);
-    try {
-      const result = await getFeatureToggles(institutionId);
-      if (result.success && result.features) {
-        setFeatures(result.features);
-        setHasData(true);
-      }
-    } catch (err) {
-      console.error('Failed to load features:', err);
-    } finally {
-      setFeaturesLoading(false);
-    }
-  };
-
-  const loadPermissions = async () => {
-    setPermsLoading(true);
-    try {
-      const result = await getRolePermissions(institutionId);
-      if (result.success) {
-        setRolePerms(result.permissions || []);
-        setAllRoles(result.all_roles || []);
-        setAllModules(result.all_modules || []);
-        if (result.all_roles?.length > 0) setSelectedRole(result.all_roles[0]);
-        if ((result.permissions || []).length > 0) setHasData(true);
-      }
-    } catch (err) {
-      console.error('Failed to load permissions:', err);
-    } finally {
-      setPermsLoading(false);
     }
   };
 
@@ -125,12 +142,12 @@ export default function AdminSettingsPage() {
     try {
       const result = await setFeatureToggles(institutionId, features);
       if (result.success) {
-        alert('Module toggles updated successfully.');
+        alert('Module toggles saved successfully.');
       } else {
         alert('Failed to save: ' + (result.error || 'Unknown error'));
       }
     } catch {
-      alert('Failed to save module toggles.');
+      alert('Failed to save. Make sure the backend server is running.');
     } finally {
       setIsSaving(false);
     }
@@ -162,7 +179,7 @@ export default function AdminSettingsPage() {
         alert('Failed to save: ' + (result.error || 'Unknown error'));
       }
     } catch {
-      alert('Failed to save permissions.');
+      alert('Failed to save. Make sure the backend server is running.');
     } finally {
       setIsSaving(false);
     }
@@ -174,13 +191,13 @@ export default function AdminSettingsPage() {
     try {
       const result = await seedPermissions(institutionId);
       if (result.success) {
-        alert('Default permissions seeded! All modules enabled, Admin has full access.');
+        alert('Defaults seeded! All modules enabled, Admin has full access.');
         await loadAll();
       } else {
         alert('Failed to seed: ' + (result.error || 'Unknown error'));
       }
     } catch {
-      alert('Failed to seed permissions.');
+      alert('Failed to seed. Make sure the backend server is running.');
     } finally {
       setIsSeeding(false);
     }
@@ -209,7 +226,13 @@ export default function AdminSettingsPage() {
             </div>
           </div>
           <div className="flex gap-3">
-            {!hasData && !isLoading && (
+            {!isLoading && backendAvailable === false && (
+              <button onClick={() => setShowSqlModal(true)}
+                className="px-4 py-2.5 rounded-xl bg-amber-600/20 border border-amber-500/30 hover:bg-amber-600/30 text-amber-400 text-xs font-bold flex items-center gap-1.5 transition-all">
+                <Database className="w-4 h-4" /> Seed via SQL
+              </button>
+            )}
+            {!isLoading && backendAvailable === false && features.length === 0 && (
               <button onClick={handleSeed} disabled={isSeeding}
                 className="px-4 py-2.5 rounded-xl bg-emerald-600/20 border border-emerald-500/30 hover:bg-emerald-600/30 text-emerald-400 text-xs font-bold flex items-center gap-1.5 transition-all disabled:opacity-50">
                 {isSeeding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Database className="w-4 h-4" />}
@@ -230,6 +253,26 @@ export default function AdminSettingsPage() {
             )}
           </div>
         </div>
+
+        {/* Backend unavailable warning */}
+        {backendAvailable === false && (
+          <div className="bg-amber-500/10 border border-amber-500/20 rounded-2xl p-5 flex items-start gap-4">
+            <AlertTriangle className="w-6 h-6 text-amber-400 flex-shrink-0 mt-0.5" />
+            <div>
+              <h3 className="text-sm font-bold text-amber-400 mb-1">Backend server is not reachable</h3>
+              <p className="text-xs text-amber-300/70 leading-relaxed">
+                The Express backend API is required for saving changes. Deploy your backend to a service like 
+                <strong> Render</strong>, <strong>Railway</strong>, or <strong>Fly.io</strong> and set the 
+                <code className="bg-black/30 px-1.5 py-0.5 rounded mx-1">NEXT_PUBLIC_API_URL</code> 
+                environment variable in Netlify to point to your backend URL (e.g. 
+                <code className="bg-black/30 px-1.5 py-0.5 rounded mx-1">https://your-backend.onrender.com/api/v1</code>).
+              </p>
+              <p className="text-xs text-amber-300/70 leading-relaxed mt-2">
+                <strong>Quick fix:</strong> Click &quot;Seed via SQL&quot; above to initialize module data directly in Supabase.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Tab Switcher */}
         <div className="flex gap-2">
@@ -257,9 +300,7 @@ export default function AdminSettingsPage() {
         {/* ===================== FEATURE TOGGLES TAB ===================== */}
         {!isLoading && activeTab === 'features' && (
           <>
-            {featuresLoading ? (
-              <div className="py-16 text-center text-[#C4B5FD]/40 italic">Loading modules...</div>
-            ) : features.length > 0 ? (
+            {features.length > 0 ? (
               <>
                 {/* Stats bar */}
                 <div className="glass-panel rounded-2xl border border-white/5 p-4 flex items-center justify-between">
@@ -316,7 +357,10 @@ export default function AdminSettingsPage() {
               </>
             ) : (
               <div className="py-16 text-center text-[#C4B5FD]/40 italic text-sm">
-                No module data found. Click "Initialize Defaults" to set up all modules.
+                {backendAvailable === false 
+                  ? 'Backend not reachable. Click "Seed via SQL" to initialize module data, or deploy the backend server.'
+                  : 'No module data found. Click "Initialize Defaults" to set up all modules.'
+                }
               </div>
             )}
           </>
@@ -325,13 +369,11 @@ export default function AdminSettingsPage() {
         {/* ===================== ROLE PERMISSIONS TAB ===================== */}
         {!isLoading && activeTab === 'permissions' && (
           <>
-            {permsLoading ? (
-              <div className="py-16 text-center text-[#C4B5FD]/40 italic">Loading permissions...</div>
-            ) : rolePerms.length > 0 ? (
+            {rolePerms.length > 0 ? (
               <>
                 {/* Role selector */}
                 <div className="flex flex-wrap gap-2">
-                  {allRoles.filter(r => ['Admin', 'Staff', 'Teacher', 'Student', 'Parent', 'Warden', 'Security', 'Vendor', 'Driver'].includes(r)).map(role => (
+                  {['Admin', 'Staff', 'Teacher', 'Student', 'Parent', 'Warden', 'Security', 'Vendor', 'Driver'].map(role => (
                     <button key={role} onClick={() => setSelectedRole(role)}
                       className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
                         selectedRole === role
@@ -389,10 +431,42 @@ export default function AdminSettingsPage() {
               </>
             ) : (
               <div className="py-16 text-center text-[#C4B5FD]/40 italic text-sm">
-                No permissions configured. Click "Initialize Defaults" to set up role permissions.
+                {backendAvailable === false
+                  ? 'Backend not reachable. Click "Seed via SQL" to initialize permissions, or deploy the backend server.'
+                  : 'No permissions configured. Click "Initialize Defaults" to set up role permissions.'
+                }
               </div>
             )}
           </>
+        )}
+
+        {/* SQL Modal */}
+        {showSqlModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setShowSqlModal(false)}>
+            <div className="bg-[#13102A] border border-white/10 rounded-2xl max-w-2xl w-full p-6 max-h-[80vh] overflow-y-auto"
+              onClick={e => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold text-white">Seed via Supabase SQL Editor</h3>
+                <button onClick={() => setShowSqlModal(false)} className="text-gray-400 hover:text-white text-xl">&times;</button>
+              </div>
+              <p className="text-xs text-gray-400 mb-4">
+                1. Go to your <a href="https://supabase.com/dashboard" target="_blank" className="text-violet-400 hover:underline inline-flex items-center gap-1">Supabase Dashboard <ExternalLink className="w-3 h-3" /></a> → SQL Editor<br/>
+                2. Replace <code className="bg-black/30 px-1 rounded">YOUR_INSTITUTION_ID</code> with your institution UUID<br/>
+                3. Paste and run the SQL below
+              </p>
+              <p className="text-xs text-gray-500 mb-2">Your institution ID: <code className="bg-black/30 px-1.5 py-0.5 rounded text-violet-400">{institutionId || 'not found'}</code></p>
+              <pre className="bg-black/40 rounded-xl p-4 text-[11px] text-green-300/80 overflow-x-auto whitespace-pre-wrap leading-relaxed border border-white/5">
+                {SEED_SQL.replace(/YOUR_INSTITUTION_ID/g, institutionId || 'YOUR_INSTITUTION_ID')}
+              </pre>
+              <button onClick={() => {
+                navigator.clipboard.writeText(SEED_SQL.replace(/YOUR_INSTITUTION_ID/g, institutionId || 'YOUR_INSTITUTION_ID'));
+                alert('SQL copied to clipboard!');
+              }} className="mt-4 px-4 py-2 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold rounded-xl transition-colors">
+                Copy SQL to Clipboard
+              </button>
+            </div>
+          </div>
         )}
       </div>
     </main>
