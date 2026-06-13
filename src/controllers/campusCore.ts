@@ -942,8 +942,98 @@ export async function deviceAttendancePush(req: Request, res: Response) {
         // Ignore duplicate errors (23505 = unique constraint)
         if (attErr && attErr.code !== '23505') {
           console.error('Device attendance push insert error:', attErr);
-        }
-      }
+  }
+}
+
+// =========================================================================
+// CIA UNIVERSITY PORTAL EXPORT (RTU / MJPRU format)
+// =========================================================================
+export async function exportCiaMarks(req: Request, res: Response) {
+  try {
+    const { department_id, semester, subject, format } = req.query;
+    if (!department_id) {
+      return res.status(400).json({ success: false, error: 'department_id required.' });
+    }
+
+    const { data: assessments } = await supabaseAdmin
+      .from('cia_assessments')
+      .select('*')
+      .eq('department_id', department_id)
+      .eq('is_published', true)
+      .order('date');
+
+    let filteredAssessments = assessments || [];
+    if (semester) filteredAssessments = filteredAssessments.filter((a: any) => String(a.semester) === String(semester));
+    if (subject) filteredAssessments = filteredAssessments.filter((a: any) => a.subject === subject);
+
+    if (filteredAssessments.length === 0) {
+      return res.status(200).json({ success: true, data: [], message: 'No assessments found for the given filters.' });
+    }
+
+    const assessmentIds = filteredAssessments.map((a: any) => a.id);
+
+    const { data: students } = await supabaseAdmin
+      .from('students')
+      .select('id, roll_number, users(full_name), department_id, semester')
+      .eq('department_id', department_id)
+      .eq('semester', semester || 1);
+
+    const { data: allMarks } = await supabaseAdmin
+      .from('cia_marks')
+      .select('*')
+      .in('assessment_id', assessmentIds);
+
+    const marksMap: Record<string, Record<string, any>> = {};
+    (allMarks || []).forEach((m: any) => {
+      if (!marksMap[m.student_id]) marksMap[m.student_id] = {};
+      marksMap[m.student_id][m.assessment_id] = m;
+    });
+
+    const exportRows = (students || []).map((s: any) => {
+      const row: Record<string, any> = {
+        roll_number: s.roll_number,
+        student_name: s.users?.full_name || '',
+        semester: s.semester,
+      };
+      let totalObtained = 0;
+      let totalMax = 0;
+      filteredAssessments.forEach((a: any) => {
+        const mark = marksMap[s.id]?.[a.id];
+        row[a.name || a.assessment_type] = mark?.marks_obtained ?? '';
+        totalObtained += mark?.marks_obtained || 0;
+        totalMax += a.max_marks || 0;
+      });
+      row.total_marks = totalObtained;
+      row.max_marks = totalMax;
+      row.percentage = totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : '0';
+      return row;
+    });
+
+    if (format === 'csv') {
+      const headers = ['roll_number', 'student_name', 'semester', ...filteredAssessments.map((a: any) => a.name || a.assessment_type), 'total_marks', 'max_marks', 'percentage'];
+      const csvRows = [headers.join(',')];
+      exportRows.forEach((row: any) => {
+        csvRows.push(headers.map(h => `"${row[h] ?? ''}"`).join(','));
+      });
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename=CIA_Marks_${department_id}_${semester || 'all'}.csv`);
+      return res.status(200).send(csvRows.join('\n'));
+    }
+
+    return res.status(200).json({
+      success: true,
+      export_format: 'json',
+      department_id,
+      semester: semester || 'all',
+      subject: subject || 'all',
+      total_students: exportRows.length,
+      total_assessments: filteredAssessments.length,
+      data: exportRows,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
     }
 
     return res.json({ success: true, matched, log_id: logEntry?.id });
@@ -3695,6 +3785,88 @@ export async function enterCiaMarks(req: Request, res: Response) {
   }
 }
 
+export async function getMyCiaMarks(req: Request, res: Response) {
+  try {
+    const studentId = req.user?.id;
+    if (!studentId) {
+      return res.status(401).json({ success: false, error: 'Unauthorized.' });
+    }
+
+    const { data: student, error: studentErr } = await supabaseAdmin
+      .from('students')
+      .select('id, department_id, semester')
+      .eq('id', studentId)
+      .single();
+
+    if (studentErr || !student) {
+      return res.status(404).json({ success: false, error: 'Student record not found.' });
+    }
+
+    const { data: assessments, error: assessErr } = await supabaseAdmin
+      .from('cia_assessments')
+      .select('*, users!created_by(full_name)')
+      .eq('department_id', student.department_id)
+      .eq('is_published', true)
+      .order('date', { ascending: false });
+
+    if (assessErr) throw assessErr;
+
+    const assessmentIds = (assessments || []).map((a: any) => a.id);
+    if (assessmentIds.length === 0) {
+      return res.status(200).json({ success: true, marks: [], summary: { total_assessments: 0, total_marks_obtained: 0, total_max_marks: 0, overall_percentage: 0 } });
+    }
+
+    const { data: myMarks, error: marksErr } = await supabaseAdmin
+      .from('cia_marks')
+      .select('*')
+      .eq('student_id', studentId)
+      .in('assessment_id', assessmentIds);
+
+    if (marksErr) throw marksErr;
+
+    const marksMap: Record<string, any> = {};
+    (myMarks || []).forEach((m: any) => {
+      marksMap[m.assessment_id] = m;
+    });
+
+    const result = (assessments || []).map((a: any) => {
+      const mark = marksMap[a.id];
+      return {
+        assessment_id: a.id,
+        assessment_name: a.name,
+        assessment_type: a.assessment_type,
+        subject: a.subject,
+        max_marks: a.max_marks,
+        weightage_pct: a.weightage_pct,
+        date: a.date,
+        semester: a.semester,
+        marks_obtained: mark?.marks_obtained ?? null,
+        percentage: mark && a.max_marks > 0 ? ((mark.marks_obtained / a.max_marks) * 100).toFixed(1) : null,
+        remarks: mark?.remarks || null,
+        entered_at: mark?.entered_at || null,
+      };
+    });
+
+    const graded = result.filter((r: any) => r.marks_obtained !== null);
+    const totalObtained = graded.reduce((sum: number, r: any) => sum + (r.marks_obtained || 0), 0);
+    const totalMax = graded.reduce((sum: number, r: any) => sum + (r.max_marks || 0), 0);
+
+    return res.status(200).json({
+      success: true,
+      marks: result,
+      summary: {
+        total_assessments: result.length,
+        graded_assessments: graded.length,
+        total_marks_obtained: totalObtained,
+        total_max_marks: totalMax,
+        overall_percentage: totalMax > 0 ? ((totalObtained / totalMax) * 100).toFixed(1) : '0',
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
 export async function getAttendanceShortageReport(req: Request, res: Response) {
   try {
     const { departmentId, subject } = req.query;
@@ -4631,6 +4803,28 @@ export async function getPrepList(req: Request, res: Response) {
     });
     if (error) throw error;
     return res.status(200).json({ success: true, items: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+// =========================================================================
+// GENERAL WALLET DEDUCTION (reusable by any module)
+// =========================================================================
+export async function deductWallet(req: Request, res: Response) {
+  try {
+    const { student_id, amount, description, module } = req.body;
+    if (!student_id || !amount) {
+      return res.status(400).json({ success: false, error: 'student_id and amount required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('deduct_wallet', {
+      p_student_id: student_id,
+      p_amount: amount,
+      p_description: description || 'Wallet deduction',
+      p_module: module || 'general',
+    });
+    if (error) throw error;
+    return res.status(200).json(data);
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
   }

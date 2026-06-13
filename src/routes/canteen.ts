@@ -60,7 +60,11 @@ import {
   submitHygieneChecklist,
   getHygieneReport,
   // Express Counter Face checkout
-  faceCheckout
+  faceCheckout,
+  // Daily Menu
+  getTodayMenu,
+  setDailyMenu,
+  getDailyMenuByDate
 } from '../controllers/canteen';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -141,5 +145,10 @@ router.get('/subscriptions/:studentId', getStudentSubscriptions);
 
 // ──── EXPRESS COUNTER ─────────────────────────────────────────
 router.post('/express/checkout-face', faceCheckout);
+
+// ──── DAILY MENU ──────────────────────────────────────────────
+router.get('/daily-menu/today', getTodayMenu);
+router.post('/daily-menu', requireRole(['Admin', 'SuperAdmin', 'Vendor']), setDailyMenu);
+router.get('/daily-menu', getDailyMenuByDate);
 
 export default router;

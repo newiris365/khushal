@@ -2057,3 +2057,184 @@ export async function getWellnessAlerts(req: Request, res: Response) {
   }
 }
 
+// =========================================================================
+// NIGHTLY HEADCOUNT
+// =========================================================================
+export async function getNightlyHeadcount(req: Request, res: Response) {
+  try {
+    const institution_id = req.user?.institution_id;
+    const { blockId, date } = req.query;
+    const targetDate = (date as string) || new Date().toISOString().split('T')[0];
+
+    // 1. Get all active allocations for the institution (optionally filtered by block)
+    let allocQuery = supabaseAdmin
+      .from('hostel_allocations')
+      .select('student_id, is_current, students(id, name, roll_number, gender), hostel_rooms(id, block_id, floor, room_number, hostel_blocks(name, id))')
+      .eq('is_current', true)
+      .eq('institution_id', institution_id);
+
+    const { data: allocations, error: allocErr } = await allocQuery;
+    if (allocErr) throw allocErr;
+
+    let filteredAllocations = allocations || [];
+    if (blockId) {
+      filteredAllocations = filteredAllocations.filter((a: any) =>
+        a.hostel_rooms?.block_id === blockId
+      );
+    }
+
+    // 2. Get today's rollcall records
+    const { data: rollcalls } = await supabaseAdmin
+      .from('night_rollcalls')
+      .select('*')
+      .eq('institution_id', institution_id)
+      .eq('date', targetDate)
+      .order('started_at', { ascending: false });
+
+    // 3. Get today's leave requests that are approved
+    const { data: onLeave } = await supabaseAdmin
+      .from('hostel_leave_requests')
+      .select('student_id')
+      .eq('status', 'approved')
+      .lte('from_date', targetDate)
+      .gte('to_date', targetDate);
+
+    const onLeaveIds = new Set((onLeave || []).map((l: any) => l.student_id));
+
+    // 4. Get rollcall confirmations (students who confirmed)
+    const confirmedIds = new Set<string>();
+    (rollcalls || []).forEach((rc: any) => {
+      if (rc.records && Array.isArray(rc.records)) {
+        rc.records.forEach((r: any) => {
+          if (r.status === 'present' || r.confirmed) {
+            confirmedIds.add(r.student_id);
+          }
+        });
+      }
+    });
+
+    // 5. Build headcount per block
+    const blockMap: Record<string, any> = {};
+    filteredAllocations.forEach((a: any) => {
+      const blockName = a.hostel_rooms?.hostel_blocks?.name || 'Unknown';
+      const block_id = a.hostel_rooms?.block_id || 'unknown';
+      if (!blockMap[block_id]) {
+        blockMap[block_id] = {
+          block_id,
+          block_name: blockName,
+          total: 0,
+          present: 0,
+          absent: 0,
+          on_leave: 0,
+          not_responded: 0,
+          students: [],
+        };
+      }
+      const block = blockMap[block_id];
+      block.total++;
+      const studentId = a.student_id;
+
+      if (onLeaveIds.has(studentId)) {
+        block.on_leave++;
+        block.students.push({ id: studentId, name: a.students?.name, roll_number: a.students?.roll_number, room: a.hostel_rooms?.room_number, status: 'on_leave' });
+      } else if (confirmedIds.has(studentId)) {
+        block.present++;
+        block.students.push({ id: studentId, name: a.students?.name, roll_number: a.students?.roll_number, room: a.hostel_rooms?.room_number, status: 'present' });
+      } else {
+        block.absent++;
+        block.students.push({ id: studentId, name: a.students?.name, roll_number: a.students?.roll_number, room: a.hostel_rooms?.room_number, status: 'absent' });
+      }
+    });
+
+    const blocks = Object.values(blockMap);
+    const grandTotal = blocks.reduce((s: number, b: any) => s + b.total, 0);
+    const grandPresent = blocks.reduce((s: number, b: any) => s + b.present, 0);
+    const grandAbsent = blocks.reduce((s: number, b: any) => s + b.absent, 0);
+    const grandOnLeave = blocks.reduce((s: number, b: any) => s + b.on_leave, 0);
+
+    return res.status(200).json({
+      success: true,
+      date: targetDate,
+      summary: {
+        total: grandTotal,
+        present: grandPresent,
+        absent: grandAbsent,
+        on_leave: grandOnLeave,
+      },
+      blocks,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getNightlyHeadcountAlerts(req: Request, res: Response) {
+  try {
+    const institution_id = req.user?.institution_id;
+    const { blockId } = req.query;
+
+    // Get current allocations
+    let allocQuery = supabaseAdmin
+      .from('hostel_allocations')
+      .select('student_id, students(name, roll_number), hostel_rooms(block_id)')
+      .eq('is_current', true)
+      .eq('institution_id', institution_id);
+
+    const { data: allocations } = await allocQuery;
+    let filtered = allocations || [];
+    if (blockId) {
+      filtered = filtered.filter((a: any) => a.hostel_rooms?.block_id === blockId);
+    }
+
+    // Get all leave requests for today
+    const today = new Date().toISOString().split('T')[0];
+    const { data: onLeave } = await supabaseAdmin
+      .from('hostel_leave_requests')
+      .select('student_id')
+      .eq('status', 'approved')
+      .lte('from_date', today)
+      .gte('to_date', today);
+
+    const onLeaveIds = new Set((onLeave || []).map((l: any) => l.student_id));
+
+    // Get latest rollcall confirmations
+    const { data: rollcalls } = await supabaseAdmin
+      .from('night_rollcalls')
+      .select('records')
+      .eq('institution_id', institution_id)
+      .eq('date', today)
+      .order('started_at', { ascending: false })
+      .limit(1);
+
+    const confirmedIds = new Set<string>();
+    if (rollcalls?.[0]?.records && Array.isArray(rollcalls[0].records)) {
+      (rollcalls[0].records as any[]).forEach((r: any) => {
+        if (r.status === 'present' || r.confirmed) {
+          confirmedIds.add(r.student_id);
+        }
+      });
+    }
+
+    // Students who are neither present nor on leave = missing
+    const missingStudents = filtered
+      .filter((a: any) => !confirmedIds.has(a.student_id) && !onLeaveIds.has(a.student_id))
+      .map((a: any) => ({
+        student_id: a.student_id,
+        name: a.students?.name,
+        roll_number: a.students?.roll_number,
+      }));
+
+    return res.status(200).json({
+      success: true,
+      date: today,
+      total_allocated: filtered.length,
+      confirmed_present: confirmedIds.size,
+      on_leave: onLeaveIds.size,
+      missing: missingStudents.length,
+      missing_students: missingStudents,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+

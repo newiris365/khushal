@@ -92,6 +92,7 @@ import {
   createStudyMaterial,
   getMyLeaves,
   getDepartmentLeaves,
+  getMyCiaMarks,
   getWalletBalance,
   getWalletTransactions,
   getMyBusETA,
@@ -163,6 +164,8 @@ import {
   updateMenuStock,
   getVendorDailySales,
   getPrepList,
+  deductWallet,
+  exportCiaMarks,
 } from '../controllers/campusCore';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -377,6 +380,7 @@ router.get('/parent/visitor/preauths', requireRole(['Parent']), getParentVisitor
 // =========================================================================
 // 22. FACULTY MODULE ROUTERS
 // =========================================================================
+router.get('/student/cia/marks', requireRole(['Student']), getMyCiaMarks);
 router.get('/faculty/cia/assessments', requireRole(['Teacher', 'Staff', 'Admin', 'SuperAdmin']), getCiaAssessments);
 router.post('/faculty/cia/assessments', requireRole(['Teacher', 'Staff', 'Admin', 'SuperAdmin']), createCiaAssessment);
 router.get('/faculty/cia/marks/:assessmentId', requireRole(['Teacher', 'Staff', 'Admin', 'SuperAdmin']), getCiaMarks);
@@ -497,5 +501,15 @@ router.put('/users/:userId', requireRole(['Admin', 'SuperAdmin']), updateUser);
 router.post('/users/:userId/deactivate', requireRole(['Admin', 'SuperAdmin']), deactivateUser);
 router.post('/users/:userId/reactivate', requireRole(['Admin', 'SuperAdmin']), reactivateUser);
 router.post('/users/:userId/reset-password', requireRole(['Admin', 'SuperAdmin']), resetUserPassword);
+
+// =========================================================================
+// 27. GENERAL WALLET DEDUCTION
+// =========================================================================
+router.post('/wallet/deduct', requireRole(['Admin', 'SuperAdmin', 'Student']), deductWallet);
+
+// =========================================================================
+// 28. CIA UNIVERSITY PORTAL EXPORT
+// =========================================================================
+router.get('/cia/export', requireRole(['Admin', 'SuperAdmin', 'Teacher', 'Staff']), exportCiaMarks);
 
 export default router;

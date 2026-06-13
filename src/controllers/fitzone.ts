@@ -1,7 +1,21 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
+import crypto from 'crypto';
 import { supabaseAdmin } from '../config/supabase';
 import PDFDocument from 'pdfkit';
+import logger from '../config/logger';
+
+// Razorpay SDK initialization
+import Razorpay from 'razorpay';
+let rzp: Razorpay | null = null;
+try {
+  if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+    rzp = new Razorpay({
+      key_id: process.env.RAZORPAY_KEY_ID,
+      key_secret: process.env.RAZORPAY_KEY_SECRET
+    });
+  }
+} catch {}
 
 // ──────────────────────────────────────────────────────────────
 // ZOD SCHEMAS & VALIDATORS
@@ -488,13 +502,32 @@ export async function initiateMembershipPurchase(req: Request, res: Response) {
 
     if (planErr || !plan) return res.status(404).json({ success: false, error: 'Membership plan not found.' });
 
-    // Generate mock/real Razorpay order
-    const orderId = `rzp_order_${Math.random().toString(36).substring(2, 15)}`;
+    // Create real Razorpay order if SDK is configured
+    if (rzp) {
+      try {
+        const order = await rzp.orders.create({
+          amount: Math.round(plan.price * 100), // in paise
+          currency: 'INR',
+          receipt: `gym_membership_${plan_id}_${Date.now()}`
+        });
+        return res.status(200).json({
+          success: true,
+          order_id: order.id,
+          amount: order.amount,
+          currency: order.currency,
+          key_id: process.env.RAZORPAY_KEY_ID
+        });
+      } catch (rzpErr: any) {
+        logger.error('Razorpay order creation failed for gym membership:', rzpErr);
+      }
+    }
 
+    // Fallback: mock order for testing
+    const orderId = `rzp_order_${Math.random().toString(36).substring(2, 15)}`;
     return res.status(200).json({
       success: true,
       order_id: orderId,
-      amount: plan.price * 100, // in paise
+      amount: plan.price * 100,
       currency: 'INR',
       key: process.env.RAZORPAY_KEY_ID || 'rzp_test_mock_key_fitzone'
     });
@@ -510,8 +543,20 @@ export async function verifyMembershipPurchase(req: Request, res: Response) {
       return res.status(400).json({ success: false, error: parseResult.error.errors[0].message });
     }
 
-    const { student_id, plan_id, razorpay_order_id, razorpay_payment_id } = parseResult.data;
+    const { student_id, plan_id, razorpay_order_id, razorpay_payment_id, razorpay_signature } = parseResult.data;
     const institutionId = req.user?.institution_id;
+
+    // Verify Razorpay payment signature if not a mock order
+    const secret = process.env.RAZORPAY_KEY_SECRET;
+    if (secret && razorpay_order_id && !razorpay_order_id.startsWith('rzp_order_') && razorpay_signature) {
+      const generatedSignature = crypto
+        .createHmac('sha256', secret)
+        .update(`${razorpay_order_id}|${razorpay_payment_id}`)
+        .digest('hex');
+      if (generatedSignature !== razorpay_signature) {
+        return res.status(400).json({ success: false, error: 'Payment signature verification failed.' });
+      }
+    }
 
     // Fetch Plan duration
     const { data: plan, error: planErr } = await supabaseAdmin

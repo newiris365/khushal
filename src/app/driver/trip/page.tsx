@@ -40,19 +40,19 @@ export default function DriverTripPage() {
     }
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
-        const { latitude, longitude, speed } = pos.coords;
+        const { latitude, longitude, speed, heading } = pos.coords;
         setGpsCoords({ lat: latitude, lng: longitude });
         setLastGpsTime(new Date().toLocaleTimeString());
         setGpsStatus('active');
 
-        // Emit via API (in real app, this would be Socket.io)
+        // Emit via API to server which broadcasts via Socket.io
         try {
-          await apiPost('transit/bus-location', {
+          await apiPost('transit/location', {
+            bus_id: assignments?.bus_id,
             latitude,
             longitude,
             speed: speed || 0,
-            heading: 0,
-            bus_id: assignments?.bus_id,
+            heading: heading || 0,
           });
         } catch (err) {
           console.error('GPS emit failed:', err);
@@ -62,14 +62,44 @@ export default function DriverTripPage() {
         console.error('Geolocation error:', err);
         setGpsStatus('error');
       },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
   }, [assignments]);
 
+  const gpsWatchRef = useRef<number | null>(null);
+
   const startGpsEmission = () => {
     setGpsStatus('active');
-    emitGps(); // immediate
-    gpsIntervalRef.current = setInterval(emitGps, 5000); // every 5 seconds
+    emitGps(); // immediate first fix
+
+    // Use watchPosition for continuous real GPS tracking (more reliable than setInterval)
+    if (navigator.geolocation) {
+      gpsWatchRef.current = navigator.geolocation.watchPosition(
+        async (pos) => {
+          const { latitude, longitude, speed, heading } = pos.coords;
+          setGpsCoords({ lat: latitude, lng: longitude });
+          setLastGpsTime(new Date().toLocaleTimeString());
+          setGpsStatus('active');
+
+          try {
+            await apiPost('transit/location', {
+              bus_id: assignments?.bus_id,
+              latitude,
+              longitude,
+              speed: speed || 0,
+              heading: heading || 0,
+            });
+          } catch (err) {
+            console.error('GPS emit failed:', err);
+          }
+        },
+        (err) => {
+          console.error('Geolocation watch error:', err);
+          setGpsStatus('error');
+        },
+        { enableHighAccuracy: true, maximumAge: 0 }
+      );
+    }
 
     // Start timer
     const startTime = Date.now();
@@ -79,6 +109,10 @@ export default function DriverTripPage() {
   };
 
   const stopGpsEmission = () => {
+    if (gpsWatchRef.current !== null && navigator.geolocation) {
+      navigator.geolocation.clearWatch(gpsWatchRef.current);
+      gpsWatchRef.current = null;
+    }
     if (gpsIntervalRef.current) {
       clearInterval(gpsIntervalRef.current);
       gpsIntervalRef.current = null;

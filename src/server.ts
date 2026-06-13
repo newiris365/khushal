@@ -28,6 +28,7 @@ import obeRouter from './routes/obe';
 import naacRouter from './routes/naac';
 import hrRouter from './routes/hr';
 import permissionsRouter from './routes/permissions';
+import grievancesRouter from './routes/grievances';
 import { initGateHardware } from './services/gateHardware';
 
 dotenv.config();
@@ -323,6 +324,8 @@ app.use('/api/v1/naac', naacRouter);
 app.use('/api/hr', hrRouter);
 app.use('/api/v1/hr', hrRouter);
 app.use('/api/v1/permissions', permissionsRouter);
+app.use('/api/grievances', grievancesRouter);
+app.use('/api/v1/grievances', grievancesRouter);
 
 // Health Check endpoint
 app.get('/health', (req, res) => {

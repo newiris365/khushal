@@ -1898,3 +1898,136 @@ export async function logParkingExit(req: Request, res: Response) {
   }
 }
 
+// ========== PERSON DETAIL LOOKUP (for guard scanner display) ==========
+export async function getPersonDetails(req: Request, res: Response) {
+  try {
+    const { person_id } = req.params;
+    if (!person_id) {
+      return res.status(400).json({ success: false, error: 'person_id required.' });
+    }
+
+    // Look up user profile with student/employee details
+    const { data: user, error: userErr } = await supabaseAdmin
+      .from('users')
+      .select('id, name, email, phone, role, is_active, avatar_url')
+      .eq('id', person_id)
+      .eq('institution_id', req.user?.institution_id)
+      .single();
+
+    if (userErr || !user) {
+      return res.status(404).json({ success: false, error: 'Person not found.' });
+    }
+
+    // Try to get student details (department, year, roll_number)
+    let studentDetails: any = null;
+    try {
+      const { data: student } = await supabaseAdmin
+        .from('students')
+        .select('roll_number, department, semester, course, section, phone, avatar_url')
+        .eq('id', person_id)
+        .eq('institution_id', req.user?.institution_id)
+        .maybeSingle();
+      studentDetails = student;
+    } catch {}
+
+    // Try to get employee details (department, designation, employee_id)
+    let employeeDetails: any = null;
+    try {
+      const { data: employee } = await supabaseAdmin
+        .from('employees')
+        .select('employee_id, department, designation, phone, avatar_url')
+        .eq('id', person_id)
+        .eq('institution_id', req.user?.institution_id)
+        .maybeSingle();
+      employeeDetails = employee;
+    } catch {}
+
+    // Check blacklist status
+    let is_blacklisted = false;
+    try {
+      const { data: blacklistEntry } = await supabaseAdmin
+        .from('gate_blacklist')
+        .select('id')
+        .eq('person_id', person_id)
+        .eq('institution_id', req.user?.institution_id)
+        .eq('is_active', true)
+        .maybeSingle();
+      is_blacklisted = !!blacklistEntry;
+    } catch {}
+
+    return res.status(200).json({
+      success: true,
+      person: {
+        ...user,
+        ...studentDetails,
+        ...employeeDetails,
+        is_blacklisted
+      }
+    });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error looking up person details.' });
+  }
+}
+
+// ========== STUDENT/STAFF SEARCH (for visitor pass host lookup) ==========
+export async function searchPerson(req: Request, res: Response) {
+  try {
+    const { q, role } = req.query;
+    if (!q || typeof q !== 'string' || q.length < 2) {
+      return res.status(400).json({ success: false, error: 'Search query must be at least 2 characters.' });
+    }
+
+    const searchTerm = `%${q}%`;
+    let query = supabaseAdmin
+      .from('users')
+      .select('id, name, email, phone, role')
+      .eq('institution_id', req.user?.institution_id)
+      .eq('is_active', true)
+      .or(`name.ilike.${searchTerm},email.ilike.${searchTerm},phone.ilike.${searchTerm}`)
+      .limit(20);
+
+    if (role && typeof role === 'string') {
+      query = query.eq('role', role);
+    }
+
+    const { data: users, error } = await query;
+
+    if (error) {
+      return res.status(500).json({ success: false, error: error.message });
+    }
+
+    // Enrich with student roll numbers if available
+    const enrichedResults = await Promise.all(
+      (users || []).map(async (user: any) => {
+        if (user.role === 'student') {
+          try {
+            const { data: student } = await supabaseAdmin
+              .from('students')
+              .select('roll_number, department, semester')
+              .eq('id', user.id)
+              .eq('institution_id', req.user?.institution_id)
+              .maybeSingle();
+            return { ...user, ...student };
+          } catch {}
+        }
+        if (user.role === 'staff' || user.role === 'teacher') {
+          try {
+            const { data: employee } = await supabaseAdmin
+              .from('employees')
+              .select('employee_id, department, designation')
+              .eq('id', user.id)
+              .eq('institution_id', req.user?.institution_id)
+              .maybeSingle();
+            return { ...user, ...employee };
+          } catch {}
+        }
+        return user;
+      })
+    );
+
+    return res.status(200).json({ success: true, results: enrichedResults });
+  } catch (err) {
+    return res.status(500).json({ success: false, error: 'Internal server error searching persons.' });
+  }
+}
+

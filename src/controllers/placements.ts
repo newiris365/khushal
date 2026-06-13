@@ -979,3 +979,70 @@ export async function generateInternshipNoc(req: Request, res: Response) {
     return res.status(500).json({ success: false, error: err.message });
   }
 }
+
+// =========================================================================
+// COMPANY VISITS
+// =========================================================================
+export async function logCompanyVisit(req: Request, res: Response) {
+  try {
+    const { company_id, visit_date, purpose, visitors, notes } = req.body;
+    if (!company_id || !visit_date || !purpose) {
+      return res.status(400).json({ success: false, error: 'company_id, visit_date, and purpose required.' });
+    }
+    const { data, error } = await supabaseAdmin.rpc('log_company_visit', {
+      p_company_id: company_id,
+      p_visit_date: visit_date,
+      p_purpose: purpose,
+      p_visitors: JSON.stringify(visitors || []),
+      p_notes: notes || '',
+      p_created_by: req.user?.id,
+    });
+    if (error) throw error;
+    return res.status(201).json(data);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getCompanyVisits(req: Request, res: Response) {
+  try {
+    const { company_id } = req.query;
+    let query = supabaseAdmin
+      .from('company_visits')
+      .select('*, companies(name, industry)')
+      .eq('institution_id', req.user?.institution_id)
+      .order('visit_date', { ascending: false });
+    if (company_id) query = query.eq('company_id', company_id);
+    const { data, error } = await query;
+    if (error) throw error;
+    return res.status(200).json({ success: true, visits: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function updateCompanyVisit(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+    const { status, notes, follow_up_date, follow_up_notes, attendees_count, offers_made, offers_accepted } = req.body;
+    const updateData: any = { updated_at: new Date().toISOString() };
+    if (status) updateData.status = status;
+    if (notes) updateData.notes = notes;
+    if (follow_up_date) updateData.follow_up_date = follow_up_date;
+    if (follow_up_notes) updateData.follow_up_notes = follow_up_notes;
+    if (attendees_count !== undefined) updateData.attendees_count = attendees_count;
+    if (offers_made !== undefined) updateData.offers_made = offers_made;
+    if (offers_accepted !== undefined) updateData.offers_accepted = offers_accepted;
+
+    const { data, error } = await supabaseAdmin
+      .from('company_visits')
+      .update(updateData)
+      .eq('id', id)
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, visit: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}

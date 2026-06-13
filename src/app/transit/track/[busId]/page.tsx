@@ -52,52 +52,8 @@ export default function TrackBusPage({ params }: { params: { busId: string } }) 
       setConnectionStatus('offline');
     });
 
-    // 3. Mock telemetry coordinates drift fallback in case of connection failure
-    let mockInterval: NodeJS.Timeout;
-    const fallbackTimer = setTimeout(() => {
-      if (connectionStatus !== 'connected') {
-        setConnectionStatus('offline');
-        let index = 0;
-        const mockCoords = [
-          { latitude: 26.2912, longitude: 73.0156, speed: 42, heading: 180 },
-          { latitude: 26.2800, longitude: 73.0120, speed: 38, heading: 175 },
-          { latitude: 26.2647, longitude: 73.0012, speed: 0, heading: 90 }, // At stop
-          { latitude: 26.2300, longitude: 73.0150, speed: 50, heading: 220 },
-          { latitude: 26.1543, longitude: 73.0234, speed: 45, heading: 195 }
-        ];
-
-        mockInterval = setInterval(() => {
-          const currentMock = mockCoords[index];
-          setTelemetry((prev: any) => ({
-            ...prev,
-            ...currentMock
-          }));
-          
-          // Recompute mock ETAs
-          if (stops.length > 0) {
-            const calculatedEtas = stops.map((stop: any) => {
-              // Simple planar distance approximation for mockup
-              const d = Math.sqrt(Math.pow(currentMock.latitude - stop.latitude, 2) + Math.pow(currentMock.longitude - stop.longitude, 2)) * 111;
-              const v = currentMock.speed > 5 ? currentMock.speed : 25;
-              return {
-                name: stop.name,
-                distance_km: parseFloat(d.toFixed(2)),
-                eta_minutes: Math.round((d / v) * 60)
-              };
-            });
-            setEtas(calculatedEtas);
-          }
-
-          index = (index + 1) % mockCoords.length;
-        }, 10000);
-      }
-    }, 4000);
-
-    return () => {
-      clearTimeout(fallbackTimer);
-      if (mockInterval) clearInterval(mockInterval);
-    };
-  }, [stops.length]);
+    return () => {};
+  }, [params.busId]);
 
   const loadRouteDetails = async () => {
     try {

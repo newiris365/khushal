@@ -31,7 +31,10 @@ import {
   getAlumniList,
   bookMentorshipSession,
   getInternships,
-  generateInternshipNoc
+  generateInternshipNoc,
+  logCompanyVisit,
+  getCompanyVisits,
+  updateCompanyVisit
 } from '../controllers/placements';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -89,5 +92,10 @@ router.post('/alumni/book', requireRole(['Student']), bookMentorshipSession);
 // ──── INTERNSHIPS ──────────────────────────────────────────────
 router.get('/internships', requireRole(['Admin', 'SuperAdmin', 'TPO', 'Student']), getInternships);
 router.get('/internships/:id/noc', requireRole(['Admin', 'SuperAdmin', 'TPO', 'Student']), generateInternshipNoc);
+
+// ──── COMPANY VISITS ──────────────────────────────────────────
+router.post('/visits', requireRole(['Admin', 'SuperAdmin', 'TPO']), logCompanyVisit);
+router.get('/visits', requireRole(['Admin', 'SuperAdmin', 'TPO']), getCompanyVisits);
+router.put('/visits/:id', requireRole(['Admin', 'SuperAdmin', 'TPO']), updateCompanyVisit);
 
 export default router;

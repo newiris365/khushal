@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { z } from 'zod';
 import crypto from 'crypto';
 import { supabaseAdmin } from '../config/supabase';
+import logger from '../config/logger';
 
 // ──────────────────────────────────────────────────────────────
 // ZOD SCHEMAS
@@ -354,7 +355,36 @@ export async function placeOrder(req: Request, res: Response) {
       });
     }
 
-    return res.status(200).json({ success: true, message: 'Order placed successfully.', order });
+    // Generate KOT (Kitchen Order Ticket) number
+    const kot_number = `KOT-${Date.now().toString(36).toUpperCase().slice(-6)}`;
+
+    // Emit Socket.io event to kitchen/vendor display
+    try {
+      const { canteenNs } = require('../server');
+      if (canteenNs && order) {
+        const kotPayload = {
+          order_id: order.id,
+          order_number: order.order_number,
+          kot_number,
+          student_id: order.student_id,
+          items: order.items,
+          total_amount: order.total_amount,
+          special_instructions: order.special_instructions,
+          status: order.status,
+          order_time: order.order_time,
+          institution_id: order.institution_id
+        };
+        // Notify kitchen display
+        canteenNs.to(`kitchen_${order.institution_id}`).emit('order:new', kotPayload);
+        // Notify specific order tracking
+        canteenNs.to(`order_${order.id}`).emit('order:placed', kotPayload);
+        logger.info(`Canteen: KOT ${kot_number} emitted for order ${order.order_number}`);
+      }
+    } catch (e) {
+      logger.error('Failed to emit order:new Socket.io event', e);
+    }
+
+    return res.status(200).json({ success: true, message: 'Order placed successfully.', order, kot_number });
   } catch (err) {
     return res.status(500).json({ success: false, error: 'Internal server error processing order.' });
   }
@@ -401,6 +431,28 @@ export async function updateOrderStatus(req: Request, res: Response) {
 
     if (error || !order) {
       return res.status(404).json({ success: false, error: 'Order not found.' });
+    }
+
+    // Emit Socket.io event for real-time order status update
+    try {
+      const { canteenNs } = require('../server');
+      if (canteenNs) {
+        const statusPayload = {
+          order_id: order.id,
+          order_number: order.order_number,
+          status: order.status,
+          student_id: order.student_id,
+          updated_at: new Date().toISOString(),
+          institution_id: order.institution_id
+        };
+        // Notify kitchen display
+        canteenNs.to(`kitchen_${order.institution_id}`).emit('order:status_changed', statusPayload);
+        // Notify student tracking this order
+        canteenNs.to(`order_${order.id}`).emit('order:status_changed', statusPayload);
+        logger.info(`Canteen: Order ${order.order_number} status -> ${order.status}`);
+      }
+    } catch (e) {
+      logger.error('Failed to emit order:status_changed Socket.io event', e);
     }
 
     // If cancelled, refund wallet
@@ -935,6 +987,24 @@ export async function cancelOrder(req: Request, res: Response) {
       .single();
 
     if (error || !order) throw new Error('Order not found.');
+
+    // Emit Socket.io event for order cancellation
+    try {
+      const { canteenNs } = require('../server');
+      if (canteenNs) {
+        const cancelPayload = {
+          order_id: order.id,
+          order_number: order.order_number,
+          status: 'Cancelled',
+          student_id: order.student_id,
+          institution_id: order.institution_id
+        };
+        canteenNs.to(`kitchen_${order.institution_id}`).emit('order:status_changed', cancelPayload);
+        canteenNs.to(`order_${order.id}`).emit('order:cancelled', cancelPayload);
+      }
+    } catch (e) {
+      logger.error('Failed to emit order:cancelled Socket.io event', e);
+    }
 
     if (order.payment_method === 'Wallet') {
       const { data: wallet } = await supabaseAdmin
@@ -1583,6 +1653,69 @@ export async function faceCheckout(req: Request, res: Response) {
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: 'Face checkout logic failed.' });
+  }
+}
+
+// =========================================================================
+// DAILY CANTEEN MENU
+// =========================================================================
+export async function getTodayMenu(req: Request, res: Response) {
+  try {
+    const institution_id = req.user?.institution_id;
+    const { meal_type } = req.query;
+    const { data, error } = await supabaseAdmin.rpc('get_today_menu', {
+      p_institution_id: institution_id,
+      p_meal_type: meal_type || null,
+    });
+    if (error) throw error;
+    return res.status(200).json(data);
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function setDailyMenu(req: Request, res: Response) {
+  try {
+    const institution_id = req.user?.institution_id;
+    const { menu_item_id, menu_date, meal_type, is_available, price_override, special_notes } = req.body;
+    if (!menu_item_id || !menu_date || !meal_type) {
+      return res.status(400).json({ success: false, error: 'menu_item_id, menu_date, and meal_type required.' });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('daily_canteen_menu')
+      .upsert({
+        institution_id,
+        menu_item_id,
+        menu_date,
+        meal_type,
+        is_available: is_available ?? true,
+        price_override: price_override || null,
+        special_notes: special_notes || null,
+      }, { onConflict: 'institution_id,menu_item_id,menu_date,meal_type' })
+      .select()
+      .single();
+    if (error) throw error;
+    return res.status(200).json({ success: true, item: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getDailyMenuByDate(req: Request, res: Response) {
+  try {
+    const institution_id = req.user?.institution_id;
+    const { date, meal_type } = req.query;
+    let query = supabaseAdmin
+      .from('daily_canteen_menu')
+      .select('*, canteen_menus(name, description, category, is_veg, image_url, calories, allergens)')
+      .eq('institution_id', institution_id)
+      .eq('menu_date', date || new Date().toISOString().split('T')[0]);
+    if (meal_type) query = query.eq('meal_type', meal_type);
+    const { data, error } = await query;
+    if (error) throw error;
+    return res.status(200).json({ success: true, items: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 }
 

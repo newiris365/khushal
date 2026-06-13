@@ -493,26 +493,46 @@ export async function uploadNaacDocument(req: Request, res: Response) {
 
 export async function getNaacDashboard(req: Request, res: Response) {
   try {
-    // completeness gauges
-    const progress = [
-      { criterion: 'Criterion 1', value: 85, badge: '#8B5CF6' },
-      { criterion: 'Criterion 2', value: 94, badge: '#6C2BD9' },
-      { criterion: 'Criterion 3', value: 72, badge: '#A78BFA' },
-      { criterion: 'Criterion 4', value: 90, badge: '#6D28D9' },
-      { criterion: 'Criterion 5', value: 88, badge: '#7C3AED' },
-      { criterion: 'Criterion 6', value: 65, badge: '#4C1D95' },
-      { criterion: 'Criterion 7', value: 92, badge: '#5B21B6' }
-    ];
+    const { data: criteria } = await supabaseAdmin
+      .from('naac_criteria')
+      .select('*')
+      .order('criterion_number');
 
-    const predictedGrade = 'A++';
+    const { data: metrics } = await supabaseAdmin
+      .from('naac_metrics')
+      .select('*');
+
+    const { data: docs } = await supabaseAdmin
+      .from('ssr_documents')
+      .select('id, criterion');
+
+    const criteriaProgress = (criteria || []).map((c: any) => {
+      const criterionMetrics = (metrics || []).filter((m: any) => m.criterion_id === c.id);
+      const total = criterionMetrics.length;
+      const verified = criterionMetrics.filter((m: any) => m.status === 'verified' || m.status === 'complete').length;
+      const completeness = total > 0 ? Math.round((verified / total) * 100) : 0;
+      return {
+        criterion: c.name || `Criterion ${c.criterion_number}`,
+        value: completeness,
+        badge: c.color || '#6C2BD9',
+        metrics_total: total,
+        metrics_verified: verified,
+      };
+    });
+
+    const avgScore = criteriaProgress.length > 0
+      ? criteriaProgress.reduce((s: number, c: any) => s + c.value, 0) / criteriaProgress.length
+      : 0;
+    const cgpa = (avgScore / 100 * 4).toFixed(2);
+    const grade = avgScore >= 90 ? 'A++' : avgScore >= 80 ? 'A+' : avgScore >= 70 ? 'A' : avgScore >= 60 ? 'B++' : 'B+';
 
     return res.status(200).json({
       success: true,
-      cgpa_estimate: 3.78,
-      grade_prediction: predictedGrade,
-      criteria_progress: progress,
-      evidence_uploaded: 42,
-      evidence_required: 50
+      cgpa_estimate: parseFloat(cgpa),
+      grade_prediction: grade,
+      criteria_progress: criteriaProgress,
+      evidence_uploaded: (docs || []).length,
+      evidence_required: (criteria || []).length * 10,
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
@@ -537,13 +557,42 @@ export async function syncFromModules(req: Request, res: Response) {
 export async function aiDraftNarrative(req: Request, res: Response) {
   try {
     const { criterionId } = req.params;
-    
-    const narrative = `### NAAC SELF-STUDY REPORT NARRATIVE: CRITERION ${criterionId}\n\nOur institution maintains high quality standards in research publications, curriculum flexibility, and student placements. The internal quality assurance cell (IQAC) conducts continuous audits of program outcome matrices, aligning direct test marks with indirect exit surveys. Over 84% student graduation outcomes are attained annually with an average salary package of 7.8 LPA. Best practices include active faculty development programs and robust student mentorship calendars.`;
+
+    const { data: criterion } = await supabaseAdmin
+      .from('naac_criteria')
+      .select('*')
+      .eq('id', criterionId)
+      .maybeSingle();
+
+    const { data: metrics } = await supabaseAdmin
+      .from('naac_metrics')
+      .select('*')
+      .eq('criterion_id', criterionId);
+
+    const { data: docs } = await supabaseAdmin
+      .from('ssr_documents')
+      .select('*')
+      .eq('criterion', criterion?.name || `Criterion ${criterion?.criterion_number || ''}`);
+
+    const criterionName = criterion?.name || `Criterion ${criterionId}`;
+    const totalMetrics = (metrics || []).length;
+    const verifiedMetrics = (metrics || []).filter((m: any) => m.status === 'verified' || m.status === 'complete').length;
+    const completeness = totalMetrics > 0 ? Math.round((verifiedMetrics / totalMetrics) * 100) : 0;
+    const evidenceCount = (docs || []).length;
+
+    const narrative = `### NAAC SELF-STUDY REPORT NARRATIVE: ${criterionName}\n\n` +
+      `This criterion has achieved ${completeness}% completeness with ${verifiedMetrics}/${totalMetrics} metrics verified and ${evidenceCount} evidence documents uploaded.\n\n` +
+      (criterion?.description ? `${criterion.description}\n\n` : '') +
+      `The institution's Internal Quality Assurance Cell (IQAC) continues to monitor and improve performance in this area through systematic data collection and evidence documentation.`;
 
     return res.status(200).json({
       success: true,
       criterion_id: criterionId,
-      draft: narrative
+      draft: narrative,
+      completeness,
+      metrics_verified: verifiedMetrics,
+      metrics_total: totalMetrics,
+      evidence_count: evidenceCount,
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
@@ -552,6 +601,28 @@ export async function aiDraftNarrative(req: Request, res: Response) {
 
 export async function ssrGenerate(req: Request, res: Response) {
   try {
+    const { data: criteria } = await supabaseAdmin
+      .from('naac_criteria')
+      .select('*')
+      .order('criterion_number');
+
+    const { data: metrics } = await supabaseAdmin
+      .from('naac_metrics')
+      .select('*');
+
+    const { data: docs } = await supabaseAdmin
+      .from('ssr_documents')
+      .select('*');
+
+    const { data: institution } = await supabaseAdmin
+      .from('institutions')
+      .select('name, address, city, state')
+      .limit(1)
+      .maybeSingle();
+
+    const instName = institution?.name || 'SIN INSTITUTE OF ENGINEERING & TECH';
+    const instAddress = institution?.city ? `${institution.city}, ${institution.state || ''}` : 'Jodhpur, Rajasthan';
+
     const doc = new PDFDocument({ margin: 50 });
     const chunks: Buffer[] = [];
 
@@ -559,25 +630,39 @@ export async function ssrGenerate(req: Request, res: Response) {
     doc.on('end', () => {
       const result = Buffer.concat(chunks);
       res.setHeader('Content-Type', 'application/pdf');
-      res.setHeader('Content-Disposition', 'attachment; filename=SIET_NAAC_SSR_Report_2026.pdf');
+      res.setHeader('Content-Disposition', `attachment; filename=${instName.replace(/\s+/g, '_')}_NAAC_SSR_2026.pdf`);
       return res.status(200).send(result);
     });
 
-    doc.fontSize(22).fillColor('#6C2BD9').text('SIN INSTITUTE OF ENGINEERING & TECH', { align: 'center' });
+    doc.fontSize(22).fillColor('#6C2BD9').text(instName, { align: 'center' });
     doc.fontSize(14).fillColor('#1F2937').text('NAAC SELF STUDY REPORT (SSR) - 2026', { align: 'center' });
     doc.moveDown(2);
 
-    doc.fontSize(11).fillColor('#374151');
-    doc.text('Criterion 1: Curricular Aspects (Completeness: 85%)');
-    doc.text('Criterion 2: Teaching-Learning & Evaluation (Completeness: 94%)');
-    doc.text('Criterion 3: Research, Innovations & Extension (Completeness: 72%)');
-    doc.text('Criterion 4: Infrastructure & Learning Resources (Completeness: 90%)');
-    doc.text('Criterion 5: Student Support & Progression (Completeness: 88%)');
-    doc.text('Criterion 6: Governance, Leadership & Management (Completeness: 65%)');
-    doc.text('Criterion 7: Institutional Values & Best Practices (Completeness: 92%)');
-    doc.moveDown(2);
+    doc.fontSize(10).fillColor('#9CA3AF').text(`Generated: ${new Date().toLocaleDateString('en-IN')} | IQAC Internal Cell`, { align: 'center' });
+    doc.moveDown(1);
 
-    doc.fontSize(10).fillColor('#9CA3AF').text('Generated by SIET IQAC Internal Cell. Jodhpur, Rajasthan.', { align: 'center' });
+    if (criteria && criteria.length > 0) {
+      for (const c of criteria) {
+        const criterionMetrics = (metrics || []).filter((m: any) => m.criterion_id === c.id);
+        const total = criterionMetrics.length;
+        const verified = criterionMetrics.filter((m: any) => m.status === 'verified' || m.status === 'complete').length;
+        const completeness = total > 0 ? Math.round((verified / total) * 100) : 0;
+        const criterionDocs = (docs || []).filter((d: any) => d.criterion === c.name || d.criterion === `Criterion ${c.criterion_number}`);
+
+        doc.fontSize(11).fillColor('#374151').text(`${c.name || 'Criterion ' + c.criterion_number} (Completeness: ${completeness}%)`);
+        doc.fontSize(9).fillColor('#6B7280').text(`  Metrics: ${verified}/${total} verified | Evidence: ${criterionDocs.length} documents uploaded`);
+        if (c.description) {
+          doc.fontSize(8).fillColor('#9CA3AF').text(`  ${c.description.substring(0, 150)}...`);
+        }
+        doc.moveDown(0.5);
+      }
+    } else {
+      doc.fontSize(11).fillColor('#374151').text('No NAAC criteria configured yet. Please add criteria in the NAAC Portal.');
+    }
+
+    doc.moveDown(2);
+    doc.fontSize(8).fillColor('#9CA3AF').text(`Total Evidence Documents: ${(docs || []).length}`, { align: 'center' });
+    doc.text(`Report generated automatically by IRIS 365 NAAC Module. ${instAddress}`, { align: 'center' });
     doc.end();
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });
@@ -586,15 +671,34 @@ export async function ssrGenerate(req: Request, res: Response) {
 
 export async function getScoreEstimate(req: Request, res: Response) {
   try {
+    const { data: criteria } = await supabaseAdmin
+      .from('naac_criteria')
+      .select('*')
+      .order('criterion_number');
+
+    const { data: metrics } = await supabaseAdmin
+      .from('naac_metrics')
+      .select('*');
+
+    const criteriaScores = (criteria || []).map((c: any) => {
+      const criterionMetrics = (metrics || []).filter((m: any) => m.criterion_id === c.id);
+      const total = criterionMetrics.length;
+      const verified = criterionMetrics.filter((m: any) => m.status === 'verified' || m.status === 'complete').length;
+      const completeness = total > 0 ? (verified / total) * 100 : 0;
+      const score = (completeness / 100) * 4.0;
+      return { name: c.name || `Criterion ${c.criterion_number}`, score: parseFloat(score.toFixed(1)), max: 4.0 };
+    });
+
+    const avgScore = criteriaScores.length > 0
+      ? criteriaScores.reduce((s: number, c: any) => s + c.score, 0) / criteriaScores.length
+      : 0;
+    const grade = avgScore >= 3.6 ? 'A++' : avgScore >= 3.2 ? 'A+' : avgScore >= 2.8 ? 'A' : avgScore >= 2.4 ? 'B++' : 'B+';
+
     return res.status(200).json({
       success: true,
-      cgpa: 3.78,
-      grade: 'A++',
-      criteria_scores: [
-        { name: 'Curricular Aspects', score: 3.8, max: 4.0 },
-        { name: 'Teaching-Learning', score: 3.7, max: 4.0 },
-        { name: 'Research & Extensions', score: 3.5, max: 4.0 }
-      ]
+      cgpa: parseFloat(avgScore.toFixed(2)),
+      grade,
+      criteria_scores: criteriaScores,
     });
   } catch (err: any) {
     return res.status(500).json({ success: false, error: err.message });

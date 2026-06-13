@@ -43,7 +43,9 @@ import {
   getRollCallStatus,
   logWellnessCheckin,
   getWellnessTrends,
-  getWellnessAlerts
+  getWellnessAlerts,
+  getNightlyHeadcount,
+  getNightlyHeadcountAlerts
 } from '../controllers/hostel';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -121,5 +123,9 @@ router.get('/rollcall/status/:id', requireRole(['Warden', 'Staff', 'Admin', 'Sup
 router.post('/wellness/checkin', requireRole(['Student']), logWellnessCheckin);
 router.get('/wellness/trends', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), getWellnessTrends);
 router.get('/wellness/alerts', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), getWellnessAlerts);
+
+// ========== 14. NIGHTLY HEADCOUNT ==========
+router.get('/headcount', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), getNightlyHeadcount);
+router.get('/headcount/alerts', requireRole(['Warden', 'Staff', 'Admin', 'SuperAdmin']), getNightlyHeadcountAlerts);
 
 export default router;

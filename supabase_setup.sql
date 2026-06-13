@@ -460,6 +460,48 @@ CREATE TABLE IF NOT EXISTS equipment_logs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
 
+-- 34b. FITNESS METRICS (body measurements tracking)
+CREATE TABLE IF NOT EXISTS fitness_metrics (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+    recorded_by UUID REFERENCES users(id) ON DELETE SET NULL,
+    date DATE DEFAULT CURRENT_DATE,
+    weight_kg DECIMAL(5, 2),
+    height_cm DECIMAL(5, 2),
+    bmi DECIMAL(5, 2),
+    body_fat_percent DECIMAL(5, 2),
+    chest_cm DECIMAL(5, 2),
+    waist_cm DECIMAL(5, 2),
+    hips_cm DECIMAL(5, 2),
+    notes TEXT,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 34c. WORKOUT SESSIONS
+CREATE TABLE IF NOT EXISTS workout_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+    booking_id UUID REFERENCES gym_bookings(id) ON DELETE SET NULL,
+    date DATE DEFAULT CURRENT_DATE,
+    duration_minutes INTEGER,
+    exercises JSONB,
+    calories_burned INTEGER DEFAULT 0,
+    trainer_notes TEXT,
+    self_rating INTEGER,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 34d. BOOK RESERVATIONS (library)
+CREATE TABLE IF NOT EXISTS book_reservations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    book_id UUID REFERENCES books(id) ON DELETE CASCADE,
+    student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+    reserved_at TIMESTAMPTZ DEFAULT now(),
+    expires_at TIMESTAMPTZ,
+    status TEXT DEFAULT 'waiting' CHECK (status IN ('waiting', 'notified', 'completed', 'expired')),
+    notified_at TIMESTAMPTZ
+);
+
 -- 35. BUS ROUTES
 CREATE TABLE IF NOT EXISTS bus_routes (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -2739,6 +2781,26 @@ ON CONFLICT DO NOTHING;
 CREATE UNIQUE INDEX IF NOT EXISTS idx_hostel_allocations_active_student ON hostel_allocations(student_id) WHERE (is_current = TRUE);
 CREATE UNIQUE INDEX IF NOT EXISTS idx_book_issues_active_student_book ON book_issues(student_id, book_id) WHERE (status = 'Issued');
 CREATE UNIQUE INDEX IF NOT EXISTS idx_gym_bookings_active_student_slot ON gym_bookings(student_id, slot_id) WHERE (status = 'Booked');
+
+-- Indexes for new tables (fitness_metrics, workout_sessions, book_reservations)
+CREATE INDEX IF NOT EXISTS idx_fitness_metrics_student ON fitness_metrics(student_id);
+CREATE INDEX IF NOT EXISTS idx_workout_sessions_student ON workout_sessions(student_id);
+CREATE INDEX IF NOT EXISTS idx_book_reservations_book ON book_reservations(book_id);
+CREATE INDEX IF NOT EXISTS idx_book_reservations_student ON book_reservations(student_id);
+
+-- RLS policies for new tables
+ALTER TABLE fitness_metrics ENABLE ROW LEVEL SECURITY;
+ALTER TABLE workout_sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE book_reservations ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY fitness_metrics_tenant ON fitness_metrics
+    USING (student_id IN (SELECT id FROM students WHERE institution_id = get_auth_institution_id()) OR get_auth_user_role() = 'SuperAdmin');
+
+CREATE POLICY workout_sessions_tenant ON workout_sessions
+    USING (student_id IN (SELECT id FROM students WHERE institution_id = get_auth_institution_id()) OR get_auth_user_role() = 'SuperAdmin');
+
+CREATE POLICY book_reservations_tenant ON book_reservations
+    USING (student_id IN (SELECT id FROM students WHERE institution_id = get_auth_institution_id()) OR get_auth_user_role() = 'SuperAdmin');
 
 -- Performance optimized composite index for transit live tracking queries
 CREATE INDEX IF NOT EXISTS idx_bus_tracking_composite ON bus_tracking(bus_id, timestamp DESC);

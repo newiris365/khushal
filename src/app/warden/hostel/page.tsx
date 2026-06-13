@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { Home, Users, AlertTriangle, ShieldAlert, CreditCard, Layers, Grid, ArrowRight, UserCheck, CalendarCheck, FileSpreadsheet } from 'lucide-react';
+import { Home, Users, AlertTriangle, ShieldAlert, CreditCard, Layers, Grid, ArrowRight, UserCheck, CalendarCheck, FileSpreadsheet, ClipboardCheck } from 'lucide-react';
 import { apiGet } from '../../../lib/api';
 import Link from 'next/link';
 
@@ -12,6 +12,7 @@ export default function WardenHostelDashboard() {
   const [rooms, setRooms] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [roomsLoading, setRoomsLoading] = useState(false);
+  const [headcount, setHeadcount] = useState<any>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -19,9 +20,10 @@ export default function WardenHostelDashboard() {
 
   const loadDashboardData = async () => {
     try {
-      const [overviewRes, blocksRes] = await Promise.all([
+      const [overviewRes, blocksRes, headcountRes] = await Promise.all([
         apiGet('/hostel/overview'),
-        apiGet('/hostel/blocks')
+        apiGet('/hostel/blocks'),
+        apiGet('/hostel/headcount'),
       ]);
 
       if (overviewRes.success) {
@@ -29,11 +31,13 @@ export default function WardenHostelDashboard() {
       }
       if (blocksRes.success && blocksRes.blocks?.length > 0) {
         setBlocks(blocksRes.blocks);
-        // Load first block by default
         setSelectedBlock(blocksRes.blocks[0]);
         loadRoomsForBlock(blocksRes.blocks[0].id);
       } else {
         throw new Error('No blocks returned');
+      }
+      if (headcountRes.success) {
+        setHeadcount(headcountRes);
       }
     } catch {
       // Mock stats
@@ -272,6 +276,59 @@ export default function WardenHostelDashboard() {
         </div>
 
       </div>
+
+      {/* Nightly Headcount Section */}
+      {headcount && (
+        <div className="max-w-7xl mx-auto px-6 mt-8">
+          <div className="rounded-2xl border border-white/5 bg-[#13102A]/60 p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-white flex items-center gap-2">
+                <ClipboardCheck className="w-5 h-5 text-[#A78BFA]" /> Nightly Headcount
+              </h3>
+              <Link href="/warden/hostel/headcount" className="px-3 py-1.5 rounded-lg bg-[#6C2BD9] hover:bg-[#8B5CF6] text-[10px] font-bold text-white transition-all">
+                View Full Report
+              </Link>
+            </div>
+
+            {/* Headcount Summary */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
+              <div className="bg-white/5 rounded-xl p-3 text-center border border-white/5">
+                <p className="text-[10px] text-[#C4B5FD]/40 uppercase font-bold">Total</p>
+                <p className="text-2xl font-extrabold text-white">{headcount.summary?.total || 0}</p>
+              </div>
+              <div className="bg-emerald-500/10 rounded-xl p-3 text-center border border-emerald-500/10">
+                <p className="text-[10px] text-emerald-400/60 uppercase font-bold">Present</p>
+                <p className="text-2xl font-extrabold text-emerald-400">{headcount.summary?.present || 0}</p>
+              </div>
+              <div className="bg-red-500/10 rounded-xl p-3 text-center border border-red-500/10">
+                <p className="text-[10px] text-red-400/60 uppercase font-bold">Absent</p>
+                <p className="text-2xl font-extrabold text-red-400">{headcount.summary?.absent || 0}</p>
+              </div>
+              <div className="bg-amber-500/10 rounded-xl p-3 text-center border border-amber-500/10">
+                <p className="text-[10px] text-amber-400/60 uppercase font-bold">On Leave</p>
+                <p className="text-2xl font-extrabold text-amber-400">{headcount.summary?.on_leave || 0}</p>
+              </div>
+            </div>
+
+            {/* Per-block breakdown */}
+            {headcount.blocks && headcount.blocks.length > 0 && (
+              <div className="space-y-2">
+                {headcount.blocks.map((block: any) => (
+                  <div key={block.block_id} className="flex items-center justify-between bg-white/5 rounded-lg px-4 py-2.5 border border-white/5">
+                    <span className="text-xs font-bold text-white">{block.block_name}</span>
+                    <div className="flex items-center gap-4 text-[10px]">
+                      <span className="text-emerald-400 font-bold">{block.present} present</span>
+                      <span className="text-red-400 font-bold">{block.absent} absent</span>
+                      <span className="text-amber-400 font-bold">{block.on_leave} on leave</span>
+                      <span className="text-[#C4B5FD]/50 font-bold">{block.total} total</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }

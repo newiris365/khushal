@@ -41,7 +41,9 @@ import {
   signoffWorkPermit,
   getWorkPermits,
   logParkingEntry,
-  logParkingExit
+  logParkingExit,
+  getPersonDetails,
+  searchPerson
 } from '../controllers/gate';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -113,5 +115,11 @@ router.get('/contractors/permits', requireRole(['Security', 'Admin', 'SuperAdmin
 // --- PARKING MANAGEMENT INTEGRATION (NEW) ---
 router.post('/parking/entry', requireRole(['Security', 'Admin', 'SuperAdmin']), logParkingEntry);
 router.post('/parking/exit', requireRole(['Security', 'Admin', 'SuperAdmin']), logParkingExit);
+
+// --- PERSON DETAIL LOOKUP (for guard scanner display) ---
+router.get('/person/:person_id', requireRole(['Security', 'Admin', 'SuperAdmin']), getPersonDetails);
+
+// --- PERSON SEARCH (for visitor pass host lookup) ---
+router.get('/search', requireRole(['Security', 'Admin', 'SuperAdmin']), searchPerson);
 
 export default router;
