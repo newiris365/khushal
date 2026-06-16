@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LogOut, Shield, Menu, X, ChevronRight } from 'lucide-react';
+import { LogOut, Shield, Menu, X, ChevronRight, Bell } from 'lucide-react';
 
 export interface SidebarLink {
   label: string;
@@ -56,6 +56,7 @@ export default function PortalShell({
   const [profile, setProfile] = useState<any>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [disabledFeatures, setDisabledFeatures] = useState<Set<string>>(new Set());
+  const [notifUnreadCount, setNotifUnreadCount] = useState(0);
 
   useEffect(() => {
     const savedProfile = localStorage.getItem('iris_user_profile');
@@ -98,6 +99,30 @@ export default function PortalShell({
       }
     };
     fetchFeatures();
+  }, []);
+
+  // Fetch notification unread count
+  useEffect(() => {
+    const fetchNotifCount = async () => {
+      try {
+        const savedProfile = localStorage.getItem('iris_user_profile');
+        const token = localStorage.getItem('iris_jwt_token');
+        if (!savedProfile || !token) return;
+        const parsed = JSON.parse(savedProfile);
+        if (parsed.role === 'SuperAdmin') return;
+
+        const res = await fetch('/api/settings?action=unread_notifications', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.count !== undefined) setNotifUnreadCount(data.count);
+        }
+      } catch {
+        // Fail open
+      }
+    };
+    fetchNotifCount();
   }, []);
 
   const handleSignOut = () => {
@@ -243,6 +268,18 @@ export default function PortalShell({
               <span className="text-xs text-[#C4B5FD] font-medium">
                 {profile.name?.split(' ')[0]}
               </span>
+            )}
+            {/* Notification Bell */}
+            {profile && profile.role !== 'SuperAdmin' && (
+              <a href="/admin/notifications"
+                className="relative p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-[#C4B5FD]/60 hover:text-white">
+                <Bell className="w-4 h-4" />
+                {notifUnreadCount > 0 && (
+                  <span className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-red-500 text-white text-[8px] font-bold flex items-center justify-center">
+                    {notifUnreadCount > 9 ? '9+' : notifUnreadCount}
+                  </span>
+                )}
+              </a>
             )}
             <button
               onClick={handleSignOut}

@@ -271,7 +271,7 @@ export async function studentQueryEndpoint(req: Request, res: Response) {
       config,
       {
         roll_number: student.roll_number,
-        student_name: student.users?.full_name || '',
+        student_name: (student as any).users?.full_name || '',
         department_id: student.department_id,
         semester: student.semester,
       }
@@ -375,18 +375,19 @@ export async function getAttendanceAlerts(req: Request, res: Response) {
 
       if (pct < minThreshold) {
         const classesNeeded = Math.ceil((minThreshold * effectiveDenominator - 100 * effectivePresent) / (100 - minThreshold));
+        const studentName = (student as any).users?.full_name || student.roll_number;
         alerts.push({
           student_id: student.id,
           roll_number: student.roll_number,
-          student_name: student.users?.full_name,
+          student_name: studentName,
           department_id: student.department_id,
           semester: student.semester,
           current_pct: Math.round(pct * 100) / 100,
           compliance_status: pct >= 60 ? 'at_risk' : 'critical',
           classes_to_reach_75: classesNeeded,
           message: pct >= 60
-            ? `At risk: ${student.users?.full_name} at ${pct.toFixed(1)}%. Needs ${classesNeeded} consecutive present(s) to reach 75%.`
-            : `Critical: ${student.users?.full_name} at ${pct.toFixed(1)}%. Immediate intervention required.`,
+            ? `At risk: ${studentName} at ${pct.toFixed(1)}%. Needs ${classesNeeded} consecutive present(s) to reach 75%.`
+            : `Critical: ${studentName} at ${pct.toFixed(1)}%. Immediate intervention required.`,
         });
       }
     }

@@ -1,6 +1,6 @@
 # IRIS 365 Localhost Diagnostic & Testing Report
 
-**Timestamp:** 2026-06-13T05:55:53.484Z
+**Timestamp:** 2026-06-16T05:21:19.039Z
 **Environment:** Localhost (Frontend: Port 3000, Backend: Port 4000)
 **Database Connectivity:** Supabase offline simulation mode active
 
@@ -9,7 +9,7 @@
 | Category | Total Tested | Working / Redirect | Broken / Issues | Success Rate |
 | --- | --- | --- | --- | --- |
 | **Frontend Portals / Pages** | 34 | 34 | 0 | 100.0% |
-| **Backend APIs** | 20 | 1 | 19 | 5.0% |
+| **Backend APIs** | 20 | 20 | 0 | 100.0% |
 
 --- 
 
@@ -67,22 +67,22 @@
 | API Name | Method & Path | Auth Role | Status | Details / Issues |
 | --- | --- | --- | --- | --- |
 | Health Check | `GET /health` | `public` | **🟢 WORKING** (200) | N/A |
-| Director Overview | `GET /api/v1/director/overview` | `Director` | **🔴 BROKEN** (0) | Failed to connect to backend server: TIMEOUT |
-| Director Alerts | `GET /api/v1/director/alerts` | `Director` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Students List | `GET /api/v1/core/students` | `Admin` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Student Timetable | `GET /api/v1/core/timetable/student/test-student-id` | `Student` | **🔴 BROKEN** (404) | Endpoint returns 404. Route may not be mounted or path is incorrect. |
-| Canteen Menu | `GET /api/v1/canteen/menu` | `Student` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Canteen Student Orders | `GET /api/v1/canteen/orders/student/test-student-id` | `Student` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Hostel Rooms | `GET /api/v1/hostel/rooms` | `Warden` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Transit Routes | `GET /api/v1/transit/routes` | `Student` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Transit GPS | `GET /api/v1/transit/buses` | `Student` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Library Books List | `GET /api/library/books` | `Student` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Library Student Issues | `GET /api/library/issues/student/test-student-id` | `Student` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Gate Visitors Today | `GET /api/v1/core/gate/visitors-today` | `Security` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Parent Child Info | `GET /api/v1/core/parent/child-info` | `Parent` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Admissions List | `GET /api/v1/core/admissions/list` | `Admin` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Placement Drives | `GET /api/v1/placements/drives` | `Student` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Teacher Assignments | `GET /api/v1/core/assignments` | `Teacher` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Consolidated Defaulters | `GET /api/v1/core/reports/defaulters` | `Director` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| HR Employees | `GET /api/v1/hr/employees` | `HR Admin` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
-| Attendance Methods | `GET /api/v1/core/attendance/methods` | `Admin` | **🔴 BROKEN** (500) | Backend failed with status 500. Error details: TypeError: fetch failed |
+| Director Overview | `GET /api/v1/director/overview` | `Director` | **🟢 WORKING** (200) | N/A |
+| Director Alerts | `GET /api/v1/director/alerts` | `Director` | **🟢 WORKING** (200) | N/A |
+| Students List | `GET /api/v1/core/students` | `Admin` | **🟢 WORKING** (200) | N/A |
+| Student Timetable | `GET /api/v1/core/timetable/student/test-student-id` | `Student` | **🟢 WORKING** (200) | N/A |
+| Canteen Menu | `GET /api/v1/canteen/menu` | `Student` | **🟢 WORKING** (200) | N/A |
+| Canteen Student Orders | `GET /api/v1/canteen/orders/student/test-student-id` | `Student` | **🟢 WORKING** (200) | N/A |
+| Hostel Rooms | `GET /api/v1/hostel/rooms` | `Warden` | **🟢 WORKING** (200) | N/A |
+| Transit Routes | `GET /api/v1/transit/routes` | `Student` | **🟢 WORKING** (200) | N/A |
+| Transit GPS | `GET /api/v1/transit/buses` | `Student` | **🟢 WORKING** (200) | N/A |
+| Library Books List | `GET /api/library/books` | `Student` | **🟢 WORKING** (200) | N/A |
+| Library Student Issues | `GET /api/library/issues/student/test-student-id` | `Student` | **🟢 WORKING** (200) | N/A |
+| Gate Visitors Today | `GET /api/v1/core/gate/visitors-today` | `Security` | **🟢 WORKING** (200) | N/A |
+| Parent Child Info | `GET /api/v1/core/parent/child-info` | `Parent` | **🟢 WORKING** (200) | N/A |
+| Admissions List | `GET /api/v1/core/admissions/list` | `Admin` | **🟢 WORKING** (200) | N/A |
+| Placement Drives | `GET /api/v1/placements/drives` | `Student` | **🟢 WORKING** (200) | N/A |
+| Teacher Assignments | `GET /api/v1/core/assignments` | `Teacher` | **🟢 WORKING** (200) | N/A |
+| Consolidated Defaulters | `GET /api/v1/core/reports/defaulters` | `Director` | **🟢 WORKING** (200) | N/A |
+| HR Employees | `GET /api/v1/hr/employees` | `HR Admin` | **🟢 WORKING** (200) | N/A |
+| Attendance Methods | `GET /api/v1/core/attendance/methods` | `Admin` | **🟢 WORKING** (200) | N/A |

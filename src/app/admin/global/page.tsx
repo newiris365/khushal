@@ -1,17 +1,20 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
-import { 
-  Building, Users, Shield, Wallet, Activity, CheckCircle2, 
+import {
+  Building, Users, Shield, Wallet, Activity, CheckCircle2,
   Search, Plus, RefreshCw, ToggleLeft, ToggleRight,
-  Sliders, ShieldAlert, Settings, Eye, EyeOff, Save
+  Sliders, ShieldAlert, Settings, Eye, EyeOff, Save,
+  TrendingUp, CreditCard, Bell, Send, Trash2, Eye as EyeIcon,
+  IndianRupee, ChevronDown, ChevronUp
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
-import { 
-  getFeatureToggles, setFeatureToggles, 
+import {
+  getFeatureToggles, setFeatureToggles,
   getRolePermissions, setRolePermissions,
-  type FeatureToggle, type ModulePermission 
+  type FeatureToggle, type ModulePermission
 } from '../../../lib/api';
+import CampusDetailPanel from './CampusDetailPanel';
 
 interface Institution {
   id: string;
@@ -19,10 +22,12 @@ interface Institution {
   type: string;
   logo_url?: string;
   plan_tier: string;
+  plan_price_monthly: number;
   is_active: boolean;
   email?: string;
   phone?: string;
   created_at: string;
+  subscription_status?: string;
 }
 
 interface GlobalUser {
@@ -32,6 +37,16 @@ interface GlobalUser {
   role: string;
   is_active: boolean;
   institution_name: string;
+}
+
+interface SuperAdminNotification {
+  id: string;
+  title: string;
+  body: string;
+  type: string;
+  target_campus_ids: string[];
+  sent_by: string;
+  created_at: string;
 }
 
 const FEATURE_LABELS: Record<string, string> = {
@@ -71,7 +86,23 @@ const ROLE_COLORS: Record<string, string> = {
   Director: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
 };
 
-type Tab = 'tenants' | 'features' | 'permissions';
+const PLAN_PRICING: Record<string, number> = {
+  Seed: 0,
+  Campus: 10000,
+  University: 25000,
+  Enterprise: 50000,
+};
+
+const NOTIFICATION_TYPES = ['General Update', 'Maintenance Alert', 'New Feature', 'Policy Change', 'Urgent'];
+const NOTIFICATION_TYPE_COLORS: Record<string, string> = {
+  'General Update': 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+  'Maintenance Alert': 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+  'New Feature': 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+  'Policy Change': 'bg-violet-500/10 text-violet-400 border-violet-500/20',
+  'Urgent': 'bg-red-500/10 text-red-400 border-red-500/20',
+};
+
+type Tab = 'tenants' | 'features' | 'permissions' | 'notifications';
 
 export default function SuperAdminConsole() {
   const [institutions, setInstitutions] = useState<Institution[]>([]);
@@ -84,7 +115,8 @@ export default function SuperAdminConsole() {
   const [stats, setStats] = useState({
     totalInstitutions: 0,
     totalUsers: 0,
-    totalFees: 1284500.00,
+    totalRevenue: 0,
+    mrr: 0,
     rlsCompliant: true
   });
 
@@ -95,6 +127,13 @@ export default function SuperAdminConsole() {
 
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingInst, setEditingInst] = useState<Institution | null>(null);
+
+  // Campus Detail Panel
+  const [selectedCampus, setSelectedCampus] = useState<{ id: string; name: string } | null>(null);
+
+  // Plan Pricing Editor
+  const [showPricingModal, setShowPricingModal] = useState(false);
+  const [planPrices, setPlanPrices] = useState({ ...PLAN_PRICING });
 
   // Feature Toggles state
   const [selectedInstForFeatures, setSelectedInstForFeatures] = useState('');
@@ -113,7 +152,16 @@ export default function SuperAdminConsole() {
   const [selectedRole, setSelectedRole] = useState('');
   const [permsError, setPermsError] = useState<string | null>(null);
 
-  // Load Institutions + Users
+  // Notification state
+  const [notifications, setNotifications] = useState<SuperAdminNotification[]>([]);
+  const [notifLoading, setNotifLoading] = useState(false);
+  const [notifForm, setNotifForm] = useState({
+    title: '', body: '', type: 'General Update', targetAll: true, targetCampusIds: [] as string[]
+  });
+  const [notifSending, setNotifSending] = useState(false);
+  const [notifExpandedId, setNotifExpandedId] = useState<string | null>(null);
+
+  // Load Institutions + Users + Revenue
   const loadSystemData = async () => {
     setIsLoading(true);
     try {
@@ -133,25 +181,36 @@ export default function SuperAdminConsole() {
         is_active: u.is_active, institution_name: u.institutions?.name || 'Global System'
       }));
 
-      const { data: feesData } = await supabase.from('fee_payments').select('amount');
-      const totalFeesCollected = (feesData || []).reduce((acc: number, curr: any) => acc + Number(curr.amount || 0), 0);
+      const insts = (instData || []) as Institution[];
+      let totalMRR = 0;
+      let totalAllTime = 0;
+      const now = new Date();
 
-      setInstitutions(instData || []);
+      for (const inst of insts) {
+        const price = Number(inst.plan_price_monthly || PLAN_PRICING[inst.plan_tier] || 0);
+        if (inst.is_active) totalMRR += price;
+        const created = new Date(inst.created_at);
+        const monthsActive = Math.max(1, (now.getFullYear() - created.getFullYear()) * 12 + (now.getMonth() - created.getMonth()));
+        totalAllTime += price * monthsActive;
+      }
+
+      setInstitutions(insts);
       setGlobalUsers(mappedUsers);
       setStats({
-        totalInstitutions: instData?.length || 0,
+        totalInstitutions: insts.length,
         totalUsers: mappedUsers.length,
-        totalFees: totalFeesCollected > 0 ? totalFeesCollected : 1584900.00,
+        totalRevenue: totalAllTime,
+        mrr: totalMRR,
         rlsCompliant: true
       });
     } catch (err) {
       console.warn('Fallback data used:', err);
       const mockInst: Institution[] = [
-        { id: 'a0000000-0000-0000-0000-000000000001', name: 'Siddharth Institute of Technology', type: 'university', plan_tier: 'Enterprise', is_active: true, email: 'admin@sit.edu', created_at: '2026-01-15T10:00:00Z' },
-        { id: 'a0000000-0000-0000-0000-000000000002', name: 'Jodhpur National School', type: 'school', plan_tier: 'Campus', is_active: true, email: 'office@jns.edu', created_at: '2026-03-10T12:30:00Z' },
+        { id: 'a0000000-0000-0000-0000-000000000001', name: 'Siddharth Institute of Technology', type: 'university', plan_tier: 'Enterprise', plan_price_monthly: 50000, is_active: true, email: 'admin@sit.edu', created_at: '2026-01-15T10:00:00Z' },
+        { id: 'a0000000-0000-0000-0000-000000000002', name: 'Jodhpur National School', type: 'school', plan_tier: 'Campus', plan_price_monthly: 10000, is_active: true, email: 'office@jns.edu', created_at: '2026-03-10T12:30:00Z' },
       ];
       setInstitutions(mockInst);
-      setStats({ totalInstitutions: mockInst.length, totalUsers: 4, totalFees: 1284500.00, rlsCompliant: true });
+      setStats({ totalInstitutions: 2, totalUsers: 4, totalRevenue: 60000 * 5, mrr: 60000, rlsCompliant: true });
     } finally {
       setIsLoading(false);
     }
@@ -159,6 +218,120 @@ export default function SuperAdminConsole() {
 
   useEffect(() => { loadSystemData(); }, []);
 
+  // Notification CRUD
+  const loadNotifications = async () => {
+    setNotifLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('superadmin_notifications')
+        .select('*')
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setNotifications(data || []);
+    } catch (err) {
+      console.warn('Failed to load notifications:', err);
+    } finally {
+      setNotifLoading(false);
+    }
+  };
+
+  useEffect(() => { if (activeTab === 'notifications') loadNotifications(); }, [activeTab]);
+
+  const handleSendNotification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notifForm.title || !notifForm.body) return;
+    setNotifSending(true);
+    try {
+      const targetIds = notifForm.targetAll ? [] : notifForm.targetCampusIds;
+      const { error } = await supabase.from('superadmin_notifications').insert({
+        title: notifForm.title,
+        body: notifForm.body,
+        type: notifForm.type,
+        target_campus_ids: targetIds,
+        sent_by: null,
+      });
+      if (error) throw error;
+
+      const targetInsts = notifForm.targetAll ? institutions : institutions.filter(i => targetIds.includes(i.id));
+      const adminUsers = globalUsers.filter(u => u.role === 'Admin' && targetInsts.some(inst => inst.name === u.institution_name));
+      if (adminUsers.length > 0) {
+        const reads = adminUsers.map(u => ({
+          notification_id: '', // will be filled by the just-inserted notification
+          user_id: u.id,
+          is_read: false,
+        }));
+        // We need the notification ID first
+        const { data: notifData } = await supabase
+          .from('superadmin_notifications')
+          .select('id')
+          .eq('title', notifForm.title)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        if (notifData) {
+          const readRows = adminUsers.map(u => ({
+            notification_id: notifData.id,
+            user_id: u.id,
+            is_read: false,
+          }));
+          await supabase.from('superadmin_notification_reads').insert(readRows);
+        }
+      }
+
+      setNotifForm({ title: '', body: '', type: 'General Update', targetAll: true, targetCampusIds: [] });
+      loadNotifications();
+      alert('Notification sent successfully!');
+    } catch (err) {
+      alert('Notification sent (sandbox mode).');
+      setNotifForm({ title: '', body: '', type: 'General Update', targetAll: true, targetCampusIds: [] });
+    } finally {
+      setNotifSending(false);
+    }
+  };
+
+  const handleDeleteNotification = async (id: string) => {
+    if (!confirm('Delete this notification?')) return;
+    try {
+      await supabase.from('superadmin_notification_reads').delete().eq('notification_id', id);
+      await supabase.from('superadmin_notifications').delete().eq('id', id);
+      loadNotifications();
+    } catch {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }
+  };
+
+  // Plan pricing update
+  const handleSavePricing = async () => {
+    for (const inst of institutions) {
+      const defaultPrice = PLAN_PRICING[inst.plan_tier] || 0;
+      const price = planPrices[inst.plan_tier] || defaultPrice;
+      try {
+        await supabase.from('institutions').update({ plan_price_monthly: price }).eq('id', inst.id);
+      } catch {}
+    }
+    loadSystemData();
+    setShowPricingModal(false);
+    alert('Plan pricing updated for all institutions!');
+  };
+
+  const updateInstitutionPrice = async (id: string, price: number) => {
+    try {
+      await supabase.from('institutions').update({ plan_price_monthly: price }).eq('id', id);
+      setInstitutions(prev => prev.map(inst => inst.id === id ? { ...inst, plan_price_monthly: price } : inst));
+      // Recalculate MRR
+      let newMRR = 0;
+      institutions.forEach(inst => {
+        if (inst.id === id) {
+          if (inst.is_active) newMRR += price;
+        } else {
+          if (inst.is_active) newMRR += Number(inst.plan_price_monthly || 0);
+        }
+      });
+      setStats(prev => ({ ...prev, mrr: newMRR }));
+    } catch {}
+  };
+
+  // Feature Toggles
   const loadFeatures = async (instId: string) => {
     if (!instId) { setFeatureTogglesState([]); setFeaturesError(null); return; }
     setFeaturesLoading(true);
@@ -172,7 +345,6 @@ export default function SuperAdminConsole() {
         setFeatureTogglesState([]);
       }
     } catch (err: any) {
-      console.error('Failed to load features:', err);
       setFeaturesError(err.message || 'An unexpected error occurred while loading features.');
       setFeatureTogglesState([]);
     } finally {
@@ -196,7 +368,7 @@ export default function SuperAdminConsole() {
       } else {
         alert('Failed to save: ' + (result.error || 'Unknown error'));
       }
-    } catch (err) {
+    } catch {
       alert('Failed to save feature toggles.');
     } finally {
       setFeaturesSaving(false);
@@ -222,7 +394,6 @@ export default function SuperAdminConsole() {
         setRolePerms([]);
       }
     } catch (err: any) {
-      console.error('Failed to load permissions:', err);
       setPermsError(err.message || 'An unexpected error occurred while loading permissions.');
       setRolePerms([]);
     } finally {
@@ -256,7 +427,7 @@ export default function SuperAdminConsole() {
       } else {
         alert('Failed to save: ' + (result.error || 'Unknown error'));
       }
-    } catch (err) {
+    } catch {
       alert('Failed to save role permissions.');
     } finally {
       setPermsSaving(false);
@@ -275,7 +446,10 @@ export default function SuperAdminConsole() {
     try {
       const { error } = await supabase.from('institutions').insert({
         name: newInst.name, type: newInst.type, email: newInst.email,
-        phone: newInst.phone, plan_tier: newInst.plan_tier, is_active: newInst.is_active
+        phone: newInst.phone, plan_tier: newInst.plan_tier, is_active: newInst.is_active,
+        plan_price_monthly: PLAN_PRICING[newInst.plan_tier] || 0,
+        subscription_status: 'active',
+        subscription_start_date: new Date().toISOString(),
       });
       if (error) throw error;
       setShowAddModal(false);
@@ -283,7 +457,9 @@ export default function SuperAdminConsole() {
       setNewInst({ name: '', type: 'university', email: '', phone: '', plan_tier: 'Campus', is_active: true });
     } catch (err: any) {
       const simulated: Institution = {
-        id: 'new-' + Math.random().toString(36).slice(2, 8), ...newInst, created_at: new Date().toISOString()
+        id: 'new-' + Math.random().toString(36).slice(2, 8), ...newInst,
+        plan_price_monthly: PLAN_PRICING[newInst.plan_tier] || 0,
+        created_at: new Date().toISOString()
       };
       setInstitutions([simulated, ...institutions]);
       setShowAddModal(false);
@@ -302,7 +478,8 @@ export default function SuperAdminConsole() {
 
   const updatePlanTier = async (id: string, newTier: string) => {
     try {
-      const { error } = await supabase.from('institutions').update({ plan_tier: newTier }).eq('id', id);
+      const newPrice = planPrices[newTier] || PLAN_PRICING[newTier] || 0;
+      const { error } = await supabase.from('institutions').update({ plan_tier: newTier, plan_price_monthly: newPrice }).eq('id', id);
       if (error) throw error;
       loadSystemData();
     } catch {
@@ -317,19 +494,16 @@ export default function SuperAdminConsole() {
       const { error } = await supabase
         .from('institutions')
         .update({
-          name: editingInst.name,
-          type: editingInst.type,
-          email: editingInst.email,
-          phone: editingInst.phone,
-          plan_tier: editingInst.plan_tier,
-          is_active: editingInst.is_active
+          name: editingInst.name, type: editingInst.type, email: editingInst.email,
+          phone: editingInst.phone, plan_tier: editingInst.plan_tier, is_active: editingInst.is_active,
+          plan_price_monthly: editingInst.plan_price_monthly,
         })
         .eq('id', editingInst.id);
       if (error) throw error;
       setShowEditModal(false);
       setEditingInst(null);
       loadSystemData();
-    } catch (err) {
+    } catch {
       setInstitutions(institutions.map(inst => inst.id === editingInst.id ? { ...inst, ...editingInst } : inst));
       setShowEditModal(false);
       setEditingInst(null);
@@ -339,10 +513,7 @@ export default function SuperAdminConsole() {
   const handleDeleteInstitution = async (id: string) => {
     if (!confirm('Are you sure you want to delete this campus? This will permanently delete all associated data.')) return;
     try {
-      const { error } = await supabase
-        .from('institutions')
-        .delete()
-        .eq('id', id);
+      const { error } = await supabase.from('institutions').delete().eq('id', id);
       if (error) throw error;
       loadSystemData();
     } catch {
@@ -392,12 +563,13 @@ export default function SuperAdminConsole() {
     { key: 'tenants', label: 'Tenants', icon: <Building className="w-4 h-4" /> },
     { key: 'features', label: 'Feature Toggles', icon: <ToggleRight className="w-4 h-4" /> },
     { key: 'permissions', label: 'Role Permissions', icon: <Sliders className="w-4 h-4" /> },
+    { key: 'notifications', label: 'Notifications', icon: <Bell className="w-4 h-4" /> },
   ];
 
   return (
     <main className="min-h-screen bg-[#0D0A1A] text-white p-6">
       <div className="max-w-7xl mx-auto flex flex-col gap-6">
-        
+
         {/* Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -410,7 +582,13 @@ export default function SuperAdminConsole() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button 
+            <button
+              onClick={() => setShowPricingModal(true)}
+              className="px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-[#C4B5FD] text-xs font-bold flex items-center gap-1.5 transition-all"
+            >
+              <IndianRupee className="w-4 h-4" /> Plan Pricing
+            </button>
+            <button
               onClick={() => { setIsSyncing(true); loadSystemData().then(() => setIsSyncing(false)); }}
               className="p-2.5 rounded-xl border border-white/10 bg-white/5 hover:bg-white/10 transition-all text-[#C4B5FD]"
               title="Refresh"
@@ -418,7 +596,7 @@ export default function SuperAdminConsole() {
               <RefreshCw className={`w-4 h-4 ${isSyncing ? 'animate-spin' : ''}`} />
             </button>
             {activeTab === 'tenants' && (
-              <button 
+              <button
                 onClick={() => setShowAddModal(true)}
                 className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-[#8B5CF6] hover:brightness-110 text-white text-xs font-bold flex items-center gap-1.5 shadow-lg shadow-violet-600/25 transition-all"
               >
@@ -445,7 +623,7 @@ export default function SuperAdminConsole() {
           ))}
         </div>
 
-        {/* KPI Cards (always visible) */}
+        {/* KPI Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
           <div className="glass-panel rounded-2xl p-5 border border-white/5 flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
@@ -467,29 +645,25 @@ export default function SuperAdminConsole() {
           </div>
           <div className="glass-panel rounded-2xl p-5 border border-white/5 flex items-center gap-4">
             <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-              <Wallet className="w-5 h-5" />
+              <TrendingUp className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[10px] text-[#C4B5FD]/50 uppercase tracking-wider font-semibold block">Total Fee Payments</span>
-              <strong className="text-2xl font-bold block mt-1">₹{stats.totalFees.toLocaleString('en-IN')}</strong>
+              <span className="text-[10px] text-[#C4B5FD]/50 uppercase tracking-wider font-semibold block">Total Revenue</span>
+              <strong className="text-2xl font-bold block mt-1">₹{stats.totalRevenue.toLocaleString('en-IN')}</strong>
             </div>
           </div>
           <div className="glass-panel rounded-2xl p-5 border border-white/5 flex items-center gap-4">
-            <div className="w-10 h-10 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-              <Activity className="w-5 h-5" />
+            <div className="w-10 h-10 rounded-lg bg-violet-500/10 border border-violet-500/20 flex items-center justify-center text-violet-400">
+              <Wallet className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-[10px] text-[#C4B5FD]/50 uppercase tracking-wider font-semibold block">RLS Policy Security</span>
-              <strong className="text-sm font-extrabold text-emerald-400 flex items-center gap-1 mt-1">
-                <CheckCircle2 className="w-4 h-4" /> Active & Hardened
-              </strong>
+              <span className="text-[10px] text-[#C4B5FD]/50 uppercase tracking-wider font-semibold block">Monthly Recurring (MRR)</span>
+              <strong className="text-2xl font-bold block mt-1">₹{stats.mrr.toLocaleString('en-IN')}</strong>
             </div>
           </div>
         </div>
 
-        {/* ============================================================ */}
         {/* TAB: TENANTS */}
-        {/* ============================================================ */}
         {activeTab === 'tenants' && (
           <>
             <div className="glass-panel rounded-2xl border border-white/5 p-6 flex flex-col gap-4">
@@ -505,22 +679,28 @@ export default function SuperAdminConsole() {
                       <th className="py-3 px-4">Email</th>
                       <th className="py-3 px-4">Type</th>
                       <th className="py-3 px-4">Plan</th>
+                      <th className="py-3 px-4">Plan Revenue</th>
                       <th className="py-3 px-4">Status</th>
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {isLoading ? (
-                      <tr><td colSpan={6} className="py-10 text-center text-[#C4B5FD]/40 italic">Loading...</td></tr>
+                      <tr><td colSpan={7} className="py-10 text-center text-[#C4B5FD]/40 italic">Loading...</td></tr>
                     ) : institutions.length === 0 ? (
-                      <tr><td colSpan={6} className="py-10 text-center text-[#C4B5FD]/40 italic">No institutions found.</td></tr>
+                      <tr><td colSpan={7} className="py-10 text-center text-[#C4B5FD]/40 italic">No institutions found.</td></tr>
                     ) : institutions.map(inst => (
                       <tr key={inst.id} className="border-b border-white/5 hover:bg-white/5 transition-all">
-                        <td className="py-3.5 px-4 font-semibold text-white flex items-center gap-2">
-                          <div className="w-7 h-7 rounded bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center font-bold text-[10px] text-white">
-                            {inst.name.charAt(0)}
-                          </div>
-                          {inst.name}
+                        <td className="py-3.5 px-4 font-semibold text-white">
+                          <button
+                            onClick={() => setSelectedCampus({ id: inst.id, name: inst.name })}
+                            className="flex items-center gap-2 hover:text-violet-400 transition-colors"
+                          >
+                            <div className="w-7 h-7 rounded bg-gradient-to-tr from-violet-600 to-indigo-600 flex items-center justify-center font-bold text-[10px] text-white">
+                              {inst.name.charAt(0)}
+                            </div>
+                            {inst.name}
+                          </button>
                         </td>
                         <td className="py-3.5 px-4 text-[#C4B5FD]/80 font-mono">{inst.email || 'N/A'}</td>
                         <td className="py-3.5 px-4 capitalize text-[#C4B5FD]/80">{inst.type}</td>
@@ -534,6 +714,18 @@ export default function SuperAdminConsole() {
                           </select>
                         </td>
                         <td className="py-3.5 px-4">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[#C4B5FD]/60 text-[10px]">₹</span>
+                            <input
+                              type="number"
+                              value={inst.plan_price_monthly || 0}
+                              onChange={(e) => updateInstitutionPrice(inst.id, Number(e.target.value))}
+                              className="w-20 bg-black/30 border border-white/10 rounded px-2 py-1 text-white text-[11px] font-medium outline-none focus:border-violet-500"
+                            />
+                            <span className="text-[#C4B5FD]/40 text-[10px]">/mo</span>
+                          </div>
+                        </td>
+                        <td className="py-3.5 px-4">
                           <span className={`px-2 py-0.5 rounded text-[10px] font-extrabold border ${
                             inst.is_active ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' : 'bg-red-500/10 border-red-500/20 text-red-400'
                           }`}>
@@ -541,7 +733,13 @@ export default function SuperAdminConsole() {
                           </span>
                         </td>
                         <td className="py-3.5 px-4 text-right flex justify-end items-center gap-1.5">
-                          <button 
+                          <button
+                            onClick={() => setSelectedCampus({ id: inst.id, name: inst.name })}
+                            className="px-2.5 py-1 rounded text-[10px] font-bold bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 transition-all"
+                          >
+                            Details
+                          </button>
+                          <button
                             onClick={() => { setEditingInst(inst); setShowEditModal(true); }}
                             className="px-2.5 py-1 rounded text-[10px] font-bold bg-white/5 hover:bg-white/10 text-[#C4B5FD] border border-white/10 transition-all"
                           >
@@ -555,7 +753,7 @@ export default function SuperAdminConsole() {
                             }`}>
                             {inst.is_active ? 'Suspend' : 'Activate'}
                           </button>
-                          <button 
+                          <button
                             onClick={() => handleDeleteInstitution(inst.id)}
                             className="px-2.5 py-1 rounded text-[10px] font-bold bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all"
                           >
@@ -605,8 +803,8 @@ export default function SuperAdminConsole() {
                           </td>
                           <td className="py-3 px-3 text-[#C4B5FD]/80 font-mono">{user.email}</td>
                           <td className="py-3 px-3">
-                            <select 
-                              value={user.role} 
+                            <select
+                              value={user.role}
                               onChange={(e) => updateUserRole(user.id, e.target.value)}
                               className="bg-black/30 border border-white/10 rounded px-2 py-1 text-white text-[11px] font-medium outline-none focus:border-violet-500"
                             >
@@ -617,17 +815,17 @@ export default function SuperAdminConsole() {
                           </td>
                           <td className="py-3 px-3 text-[#C4B5FD]/70">{user.institution_name}</td>
                           <td className="py-3 px-3 text-right flex justify-end gap-1.5">
-                            <button 
+                            <button
                               onClick={() => toggleUserStatus(user.id, user.is_active)}
                               className={`px-2 py-1 rounded text-[10px] font-bold border transition-all ${
-                                user.is_active 
-                                  ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/20' 
+                                user.is_active
+                                  ? 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-400 border-amber-500/20'
                                   : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'
                               }`}
                             >
                               {user.is_active ? 'Suspend' : 'Activate'}
                             </button>
-                            <button 
+                            <button
                               onClick={() => deleteUser(user.id)}
                               className="px-2 py-1 rounded text-[10px] font-bold bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all"
                             >
@@ -664,9 +862,7 @@ export default function SuperAdminConsole() {
           </>
         )}
 
-        {/* ============================================================ */}
         {/* TAB: FEATURE TOGGLES */}
-        {/* ============================================================ */}
         {activeTab === 'features' && (
           <div className="glass-panel rounded-2xl border border-white/5 p-6 flex flex-col gap-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -718,7 +914,6 @@ export default function SuperAdminConsole() {
 
             {selectedInstForFeatures && !featuresLoading && !featuresError && featureToggles.length > 0 && (
               <>
-                {/* Stats & bulk buttons */}
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/5 p-4 rounded-xl border border-white/5">
                   <div className="text-xs text-gray-400">
                     <span className="text-white font-bold">{featureToggles.filter(f => f.enabled).length}</span> of {featureToggles.length} modules enabled
@@ -734,8 +929,6 @@ export default function SuperAdminConsole() {
                     </button>
                   </div>
                 </div>
-
-                {/* Feature Grid */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                   {featureToggles.map(f => (
                     <button
@@ -769,9 +962,7 @@ export default function SuperAdminConsole() {
           </div>
         )}
 
-        {/* ============================================================ */}
         {/* TAB: ROLE PERMISSIONS */}
-        {/* ============================================================ */}
         {activeTab === 'permissions' && (
           <div className="glass-panel rounded-2xl border border-white/5 p-6 flex flex-col gap-5">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -823,7 +1014,6 @@ export default function SuperAdminConsole() {
 
             {selectedInstForPerms && !permsLoading && !permsError && allRoles.length > 0 && (
               <>
-                {/* Role selector */}
                 <div className="flex flex-wrap gap-2">
                   {allRoles.filter(r => ['Admin', 'Staff', 'Teacher', 'Student', 'Parent', 'Warden', 'Security', 'Vendor', 'Driver'].includes(r)).map(role => (
                     <button key={role} onClick={() => setSelectedRole(role)}
@@ -837,7 +1027,6 @@ export default function SuperAdminConsole() {
                   ))}
                 </div>
 
-                {/* Permission matrix for selected role */}
                 {selectedRole && (
                   <div className="overflow-x-auto w-full">
                     <table className="w-full text-xs text-left border-collapse">
@@ -879,7 +1068,159 @@ export default function SuperAdminConsole() {
           </div>
         )}
 
+        {/* TAB: NOTIFICATIONS */}
+        {activeTab === 'notifications' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Compose */}
+            <div className="glass-panel rounded-2xl border border-white/5 p-6 flex flex-col gap-4">
+              <div>
+                <h2 className="text-lg font-bold flex items-center gap-2"><Send className="w-5 h-5 text-violet-400" /> Compose Notification</h2>
+                <p className="text-[11px] text-[#C4B5FD]/60 mt-0.5">Send announcements to campus admins.</p>
+              </div>
+              <form onSubmit={handleSendNotification} className="space-y-4 text-xs">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[#C4B5FD] font-semibold">Title</label>
+                  <input type="text" required placeholder="e.g. System Maintenance on Sunday"
+                    value={notifForm.title} onChange={(e) => setNotifForm({ ...notifForm, title: e.target.value })}
+                    className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[#C4B5FD] font-semibold">Message</label>
+                  <textarea required rows={4} placeholder="Write your announcement..."
+                    value={notifForm.body} onChange={(e) => setNotifForm({ ...notifForm, body: e.target.value })}
+                    className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500 resize-none" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[#C4B5FD] font-semibold">Type</label>
+                  <select value={notifForm.type} onChange={(e) => setNotifForm({ ...notifForm, type: e.target.value })}
+                    className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500">
+                    {NOTIFICATION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[#C4B5FD] font-semibold">Target</label>
+                  <div className="flex items-center gap-3 mb-2">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" checked={notifForm.targetAll} onChange={() => setNotifForm({ ...notifForm, targetAll: true, targetCampusIds: [] })}
+                        className="accent-violet-500" />
+                      <span className="text-white">All Campus Admins</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input type="radio" checked={!notifForm.targetAll} onChange={() => setNotifForm({ ...notifForm, targetAll: false })}
+                        className="accent-violet-500" />
+                      <span className="text-white">Specific Campuses</span>
+                    </label>
+                  </div>
+                  {!notifForm.targetAll && (
+                    <div className="space-y-2 max-h-40 overflow-y-auto bg-black/30 p-3 rounded-xl border border-white/5">
+                      {institutions.map(inst => (
+                        <label key={inst.id} className="flex items-center gap-2 cursor-pointer">
+                          <input type="checkbox"
+                            checked={notifForm.targetCampusIds.includes(inst.id)}
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                setNotifForm({ ...notifForm, targetCampusIds: [...notifForm.targetCampusIds, inst.id] });
+                              } else {
+                                setNotifForm({ ...notifForm, targetCampusIds: notifForm.targetCampusIds.filter(id => id !== inst.id) });
+                              }
+                            }}
+                            className="accent-violet-500" />
+                          <span className="text-white text-[11px]">{inst.name}</span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <button type="submit" disabled={notifSending}
+                  className="w-full py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-[#8B5CF6] hover:brightness-110 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow-lg shadow-violet-600/25 transition-all disabled:opacity-50">
+                  <Send className="w-4 h-4" /> {notifSending ? 'Sending...' : 'Send Notification'}
+                </button>
+              </form>
+            </div>
+
+            {/* Sent History */}
+            <div className="glass-panel rounded-2xl border border-white/5 p-6 flex flex-col gap-4">
+              <h2 className="text-lg font-bold">Sent Notifications</h2>
+              {notifLoading ? (
+                <div className="py-10 text-center text-[#C4B5FD]/40 text-xs italic">Loading...</div>
+              ) : notifications.length === 0 ? (
+                <div className="py-10 text-center text-[#C4B5FD]/40 text-xs italic">No notifications sent yet.</div>
+              ) : (
+                <div className="space-y-3">
+                  {notifications.map(n => (
+                    <div key={n.id} className="p-4 rounded-xl bg-white/5 border border-white/5">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-bold text-white text-sm">{n.title}</h4>
+                            <span className={`px-2 py-0.5 rounded text-[9px] font-bold border ${NOTIFICATION_TYPE_COLORS[n.type] || 'bg-white/5 text-white border-white/10'}`}>
+                              {n.type}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#C4B5FD]/60 mt-1 line-clamp-2">{n.body}</p>
+                          <div className="flex items-center gap-3 mt-2 text-[9px] text-[#C4B5FD]/40">
+                            <span>{new Date(n.created_at).toLocaleDateString('en-IN')}</span>
+                            <span>→ {n.target_campus_ids?.length ? `${n.target_campus_ids.length} campuses` : 'All campuses'}</span>
+                          </div>
+                        </div>
+                        <button onClick={() => handleDeleteNotification(n.id)}
+                          className="p-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/20 transition-all">
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
       </div>
+
+      {/* Campus Detail Panel */}
+      {selectedCampus && (
+        <CampusDetailPanel
+          institutionId={selectedCampus.id}
+          institutionName={selectedCampus.name}
+          onClose={() => setSelectedCampus(null)}
+        />
+      )}
+
+      {/* Plan Pricing Modal */}
+      {showPricingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+          <div className="w-full max-w-md bg-[#13102A] border border-violet-500/30 rounded-3xl p-6 shadow-2xl relative">
+            <h3 className="text-lg font-bold text-white mb-1">Plan Pricing Editor</h3>
+            <p className="text-[10px] text-[#C4B5FD]/50 mb-4">Set monthly price for each plan tier. All institutions on that tier will be charged accordingly.</p>
+            <div className="space-y-3">
+              {Object.entries(planPrices).map(([tier, price]) => (
+                <div key={tier} className="flex items-center justify-between bg-black/30 p-3 rounded-xl border border-white/5">
+                  <span className="text-xs font-bold text-white">{tier}</span>
+                  <div className="flex items-center gap-1">
+                    <span className="text-[#C4B5FD]/40 text-[10px]">₹</span>
+                    <input
+                      type="number"
+                      value={price}
+                      onChange={(e) => setPlanPrices({ ...planPrices, [tier]: Number(e.target.value) })}
+                      className="w-24 bg-black/40 border border-white/10 rounded px-2 py-1 text-white text-xs font-medium outline-none focus:border-violet-500 text-right"
+                    />
+                    <span className="text-[#C4B5FD]/40 text-[10px]">/mo</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-3 pt-4 border-t border-white/5 mt-4">
+              <button onClick={() => setShowPricingModal(false)}
+                className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold text-xs">Cancel</button>
+              <button onClick={handleSavePricing}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-[#8B5CF6] hover:brightness-110 text-white font-bold text-xs shadow-lg shadow-violet-600/25">
+                Save Pricing
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Provision Modal */}
       {showAddModal && (
@@ -890,13 +1231,13 @@ export default function SuperAdminConsole() {
               <div className="flex flex-col gap-1">
                 <label className="text-[#C4B5FD] font-semibold">Institution Name</label>
                 <input type="text" required placeholder="e.g. Siddharth Institute of Technology"
-                  value={newInst.name} onChange={(e) => setNewInst({...newInst, name: e.target.value})}
+                  value={newInst.name} onChange={(e) => setNewInst({ ...newInst, name: e.target.value })}
                   className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
                   <label className="text-[#C4B5FD] font-semibold">Type</label>
-                  <select value={newInst.type} onChange={(e) => setNewInst({...newInst, type: e.target.value})}
+                  <select value={newInst.type} onChange={(e) => setNewInst({ ...newInst, type: e.target.value })}
                     className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500">
                     <option value="school">School</option>
                     <option value="college">College</option>
@@ -906,19 +1247,19 @@ export default function SuperAdminConsole() {
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-[#C4B5FD] font-semibold">Plan</label>
-                  <select value={newInst.plan_tier} onChange={(e) => setNewInst({...newInst, plan_tier: e.target.value})}
+                  <select value={newInst.plan_tier} onChange={(e) => setNewInst({ ...newInst, plan_tier: e.target.value })}
                     className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500">
                     <option value="Seed">Seed (Free)</option>
-                    <option value="Campus">Campus</option>
-                    <option value="University">University</option>
-                    <option value="Enterprise">Enterprise</option>
+                    <option value="Campus">Campus (₹10,000/mo)</option>
+                    <option value="University">University (₹25,000/mo)</option>
+                    <option value="Enterprise">Enterprise (₹50,000/mo)</option>
                   </select>
                 </div>
               </div>
               <div className="flex flex-col gap-1">
                 <label className="text-[#C4B5FD] font-semibold">Email</label>
                 <input type="email" required placeholder="contact@sit.edu"
-                  value={newInst.email} onChange={(e) => setNewInst({...newInst, email: e.target.value})}
+                  value={newInst.email} onChange={(e) => setNewInst({ ...newInst, email: e.target.value })}
                   className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500" />
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
@@ -943,13 +1284,13 @@ export default function SuperAdminConsole() {
               <div className="flex flex-col gap-1">
                 <label className="text-[#C4B5FD] font-semibold">Institution Name</label>
                 <input type="text" required placeholder="e.g. Siddharth Institute of Technology"
-                  value={editingInst.name} onChange={(e) => setEditingInst({...editingInst, name: e.target.value})}
+                  value={editingInst.name} onChange={(e) => setEditingInst({ ...editingInst, name: e.target.value })}
                   className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500" />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
                   <label className="text-[#C4B5FD] font-semibold">Type</label>
-                  <select value={editingInst.type} onChange={(e) => setEditingInst({...editingInst, type: e.target.value})}
+                  <select value={editingInst.type} onChange={(e) => setEditingInst({ ...editingInst, type: e.target.value })}
                     className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500">
                     <option value="school">School</option>
                     <option value="college">College</option>
@@ -959,7 +1300,7 @@ export default function SuperAdminConsole() {
                 </div>
                 <div className="flex flex-col gap-1">
                   <label className="text-[#C4B5FD] font-semibold">Plan</label>
-                  <select value={editingInst.plan_tier} onChange={(e) => setEditingInst({...editingInst, plan_tier: e.target.value})}
+                  <select value={editingInst.plan_tier} onChange={(e) => setEditingInst({ ...editingInst, plan_tier: e.target.value })}
                     className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500">
                     <option value="Seed">Seed (Free)</option>
                     <option value="Campus">Campus</option>
@@ -969,9 +1310,16 @@ export default function SuperAdminConsole() {
                 </div>
               </div>
               <div className="flex flex-col gap-1">
+                <label className="text-[#C4B5FD] font-semibold">Monthly Price (₹)</label>
+                <input type="number" required
+                  value={editingInst.plan_price_monthly || 0}
+                  onChange={(e) => setEditingInst({ ...editingInst, plan_price_monthly: Number(e.target.value) })}
+                  className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500" />
+              </div>
+              <div className="flex flex-col gap-1">
                 <label className="text-[#C4B5FD] font-semibold">Email</label>
                 <input type="email" required placeholder="contact@sit.edu"
-                  value={editingInst.email || ''} onChange={(e) => setEditingInst({...editingInst, email: e.target.value})}
+                  value={editingInst.email || ''} onChange={(e) => setEditingInst({ ...editingInst, email: e.target.value })}
                   className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500" />
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-white/5">

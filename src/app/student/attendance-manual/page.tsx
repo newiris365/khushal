@@ -551,7 +551,7 @@ export default function StudentAttendancePage() {
               <SummaryCard
                 label="Present"
                 value={summary.present}
-                icon={<CheckCircle2 className="w-4 h-4 text-emerald-400" />}
+                icon={<CheckCircle2 className="w-4 h-4 text-emerald-400]" />}
                 valueClass="text-emerald-400"
               />
               <SummaryCard

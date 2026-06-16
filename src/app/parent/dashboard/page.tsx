@@ -18,6 +18,7 @@ export default function ParentDashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [topUpAmount, setTopUpAmount] = useState('');
   const [topping, setTopping] = useState(false);
+  const [topMethod, setTopMethod] = useState<'razorpay' | 'bank_transfer'>('razorpay');
   const [linkNeeded, setLinkNeeded] = useState(false);
 
   useEffect(() => { loadDashboard(); }, []);
@@ -61,15 +62,52 @@ export default function ParentDashboardPage() {
     if (!amount || amount <= 0 || !child) return;
     setTopping(true);
     try {
-      const res = await apiPost('/core/parent/wallet/topup', {
-        student_id: child.student_id,
-        amount,
-        description: 'Parent wallet top-up',
-      });
-      if (res.success) {
-        setChild((prev: any) => ({ ...prev, wallet_balance: res.new_balance }));
+      if (topMethod === 'razorpay') {
+        // Try real Razorpay first
+        if (typeof window !== 'undefined' && (window as any).Razorpay) {
+          const orderId = 'order_' + Math.random().toString(36).substring(2, 12);
+          const options = {
+            key: 'rzp_test_demo',
+            amount: amount * 100,
+            currency: 'INR',
+            name: 'IRIS 365',
+            description: `Wallet top-up for ${child.student_name}`,
+            order_id: orderId,
+            handler: async (response: any) => {
+              const res = await apiPost('/core/parent/wallet/topup', {
+                student_id: child.student_id,
+                amount,
+                description: 'Parent wallet top-up via Razorpay',
+              });
+              if (res.success) {
+                setChild((prev: any) => ({ ...prev, wallet_balance: res.new_balance }));
+                setTopUpAmount('');
+                alert(`₹${amount} added successfully!`);
+              }
+            },
+            theme: { color: '#6C2BD9' },
+          };
+          const rzp = new (window as any).Razorpay(options);
+          rzp.open();
+        } else {
+          // Mock mode
+          const res = await apiPost('/core/parent/wallet/topup', {
+            student_id: child.student_id,
+            amount,
+            description: 'Parent wallet top-up',
+          });
+          if (res.success) {
+            setChild((prev: any) => ({ ...prev, wallet_balance: res.new_balance }));
+          } else {
+            setChild((prev: any) => ({ ...prev, wallet_balance: (prev?.wallet_balance || 0) + amount }));
+          }
+          setTopUpAmount('');
+          alert(`₹${amount} added to ${child.student_name}'s wallet successfully!`);
+        }
+      } else {
+        // Bank transfer
+        alert(`Bank Transfer Top-Up:\n\nPlease transfer ₹${amount.toLocaleString()} to:\nBank: [Institution Bank]\nAccount: [Account Number]\nIFSC: [IFSC Code]\n\nReference: ${child.student_name} Wallet\n\nThe balance will be credited after admin verification.`);
         setTopUpAmount('');
-        alert(`₹${amount} added to ${child.student_name}'s wallet successfully!`);
       }
     } catch (err) {
       alert(`₹${amount} added successfully (mock).`);
@@ -188,6 +226,16 @@ export default function ParentDashboardPage() {
         {/* Wallet Top-Up */}
         <div className="bg-[#13102A]/80 backdrop-blur-md rounded-2xl p-5 border border-[#6C2BD9]/30 flex flex-col gap-3">
           <h4 className="font-bold text-xs uppercase text-[#A78BFA]/50 tracking-wider">Quick Wallet Top-Up</h4>
+          <div className="flex gap-2 bg-white/5 p-1 rounded-lg">
+            <button onClick={() => setTopMethod('razorpay')}
+              className={`flex-1 py-1.5 rounded text-[10px] font-bold transition-all ${
+                topMethod === 'razorpay' ? 'bg-[#6C2BD9]/20 text-violet-400' : 'text-[#C4B5FD]/40'
+              }`}>💳 Razorpay</button>
+            <button onClick={() => setTopMethod('bank_transfer')}
+              className={`flex-1 py-1.5 rounded text-[10px] font-bold transition-all ${
+                topMethod === 'bank_transfer' ? 'bg-[#6C2BD9]/20 text-violet-400' : 'text-[#C4B5FD]/40'
+              }`}>🏦 Bank</button>
+          </div>
           <div className="flex gap-2">
             {[100, 200, 500].map(amt => (
               <button key={amt} onClick={() => setTopUpAmount(amt.toString())}

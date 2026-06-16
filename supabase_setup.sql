@@ -3126,3 +3126,120 @@ DROP TRIGGER IF EXISTS trigger_module_permissions_updated ON module_permissions;
 CREATE TRIGGER trigger_module_permissions_updated
   BEFORE UPDATE ON module_permissions
   FOR EACH ROW EXECUTE FUNCTION update_permissions_timestamp();
+
+
+-- ==========================================================
+-- SECTION: SUPERADMIN ENHANCEMENTS (2026-06-16)
+-- ==========================================================
+
+-- 1. Extend institutions table with subscription + pricing fields
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS plan_price_monthly DECIMAL(10,2) DEFAULT 0;
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(30) DEFAULT 'active';
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS subscription_end_date TIMESTAMP WITH TIME ZONE;
+
+-- 2. Payment Configuration per institution
+CREATE TABLE IF NOT EXISTS payment_config (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE UNIQUE,
+    razorpay_key_id VARCHAR(255),
+    razorpay_key_secret VARCHAR(255),
+    bank_account_number VARCHAR(50),
+    bank_name VARCHAR(100),
+    bank_ifsc VARCHAR(20),
+    bank_holder_name VARCHAR(150),
+    upi_id VARCHAR(100),
+    enabled_methods JSONB DEFAULT '["razorpay"]'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 3. Subscription Payments
+CREATE TABLE IF NOT EXISTS subscription_payments (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+    amount DECIMAL(10,2) NOT NULL,
+    plan_tier VARCHAR(50) NOT NULL,
+    payment_date TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    method VARCHAR(50),
+    transaction_id VARCHAR(100),
+    status VARCHAR(30) DEFAULT 'Completed',
+    period_start DATE,
+    period_end DATE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 4. SuperAdmin Notifications
+CREATE TABLE IF NOT EXISTS superadmin_notifications (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    title VARCHAR(255) NOT NULL,
+    body TEXT NOT NULL,
+    type VARCHAR(50) DEFAULT 'General Update',
+    target_campus_ids UUID[] DEFAULT '{}',
+    sent_by UUID REFERENCES users(id),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 5. SuperAdmin Notification Read Status
+CREATE TABLE IF NOT EXISTS superadmin_notification_reads (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    notification_id UUID REFERENCES superadmin_notifications(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    is_read BOOLEAN DEFAULT FALSE,
+    read_at TIMESTAMP WITH TIME ZONE,
+    UNIQUE(notification_id, user_id)
+);
+
+-- RLS Policies for new tables
+ALTER TABLE payment_config ENABLE ROW LEVEL SECURITY;
+ALTER TABLE subscription_payments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE superadmin_notifications ENABLE ROW LEVEL SECURITY;
+ALTER TABLE superadmin_notification_reads ENABLE ROW LEVEL SECURITY;
+
+-- payment_config: SuperAdmin full access, Admin read own institution
+DROP POLICY IF EXISTS payment_config_policy ON payment_config;
+CREATE POLICY payment_config_policy ON payment_config
+    FOR ALL USING (
+        institution_id = get_auth_institution_id()
+        OR get_auth_user_role() = 'SuperAdmin'
+    );
+
+-- subscription_payments: SuperAdmin full access, Admin read own
+DROP POLICY IF EXISTS subscription_payments_policy ON subscription_payments;
+CREATE POLICY subscription_payments_policy ON subscription_payments
+    FOR ALL USING (
+        institution_id = get_auth_institution_id()
+        OR get_auth_user_role() = 'SuperAdmin'
+    );
+
+-- superadmin_notifications: SuperAdmin full, Admins read
+DROP POLICY IF EXISTS superadmin_notifications_select ON superadmin_notifications;
+CREATE POLICY superadmin_notifications_select ON superadmin_notifications
+    FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS superadmin_notifications_insert ON superadmin_notifications;
+CREATE POLICY superadmin_notifications_insert ON superadmin_notifications
+    FOR INSERT WITH CHECK (get_auth_user_role() = 'SuperAdmin');
+
+DROP POLICY IF EXISTS superadmin_notifications_delete ON superadmin_notifications;
+CREATE POLICY superadmin_notifications_delete ON superadmin_notifications
+    FOR DELETE USING (get_auth_user_role() = 'SuperAdmin');
+
+-- superadmin_notification_reads: users read their own, SuperAdmin read all
+DROP POLICY IF EXISTS sanr_select ON superadmin_notification_reads;
+CREATE POLICY sanr_select ON superadmin_notification_reads
+    FOR SELECT USING (
+        user_id = get_auth_user_id()
+        OR get_auth_user_role() = 'SuperAdmin'
+    );
+
+DROP POLICY IF EXISTS sanr_insert ON superadmin_notification_reads;
+CREATE POLICY sanr_insert ON superadmin_notification_reads
+    FOR INSERT WITH CHECK (get_auth_user_role() = 'SuperAdmin');
+
+DROP POLICY IF EXISTS sanr_update ON superadmin_notification_reads;
+CREATE POLICY sanr_update ON superadmin_notification_reads
+    FOR UPDATE USING (
+        user_id = get_auth_user_id()
+        OR get_auth_user_role() = 'SuperAdmin'
+    );

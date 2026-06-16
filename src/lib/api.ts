@@ -51,7 +51,6 @@ export async function apiGet<T = any>(endpoint: string, params?: Record<string, 
     const response = await fetch(url.toString(), {
       method: 'GET',
       headers,
-      next: cacheSeconds > 0 ? { revalidate: cacheSeconds } : undefined,
     });
 
     if (!response.ok) {

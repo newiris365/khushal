@@ -942,6 +942,13 @@ export async function deviceAttendancePush(req: Request, res: Response) {
         // Ignore duplicate errors (23505 = unique constraint)
         if (attErr && attErr.code !== '23505') {
           console.error('Device attendance push insert error:', attErr);
+        }
+      }
+    }
+
+    return res.json({ success: true, matched, log_id: logEntry?.id });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 }
 
@@ -1034,13 +1041,6 @@ export async function exportCiaMarks(req: Request, res: Response) {
     return res.status(500).json({ success: false, error: err.message });
   }
 }
-    }
-
-    return res.json({ success: true, matched, log_id: logEntry?.id });
-  } catch (err: any) {
-    return res.status(500).json({ success: false, error: err.message });
-  }
-}
 
 export async function getStudentAttendance(req: Request, res: Response) {
   try {
@@ -1097,6 +1097,7 @@ export async function getStudentAttendance(req: Request, res: Response) {
     return res.status(500).json({ success: false, error: 'Internal fetch failure.' });
   }
 }
+
 
 export async function getAttendanceReport(req: Request, res: Response) {
   try {

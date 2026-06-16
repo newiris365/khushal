@@ -48,6 +48,8 @@ const adminLinks: SidebarLink[] = [
   { label: 'Vendor Portal', href: '/vendor/dashboard', icon: ShoppingBag },
   { label: 'Achievements', href: '/admin/achievements', icon: FileText },
   { label: 'WhatsApp API', href: '/admin/whatsapp', icon: MessageSquare },
+  { label: 'Notifications', href: '/admin/notifications', icon: Bell },
+  { label: 'Payment Settings', href: '/admin/payment-settings', icon: CreditCard },
   { label: 'Settings', href: '/admin/settings', icon: Settings },
   { label: 'Profile', href: '/profile', icon: UserCircle },
 ];
