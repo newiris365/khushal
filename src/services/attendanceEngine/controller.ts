@@ -150,7 +150,7 @@ export async function validateCheckInEndpoint(req: Request, res: Response) {
 
     const deviceHistory = new Set((prevLogs || []).map((l: any) => l.device_id).filter(Boolean));
 
-    const { record, anomaly } = validateCheckIn(parse.data, sessionInput, config, deviceHistory);
+    const { record, anomaly } = validateCheckIn(parse.data as any, sessionInput as any, config, deviceHistory);
 
     return res.status(200).json({
       execution_status: record.validation_outcome === 'proxy_alert' ? 'validation_failed' : 'success',
@@ -181,11 +181,11 @@ export async function batchProcessEndpoint(req: Request, res: Response) {
     }
 
     const input: BatchInput = {
-      institution_id: parse.data.institution_id,
-      session: parse.data.session,
-      roster: parse.data.roster,
-      check_ins: parse.data.check_ins,
-      config: parse.data.config,
+      institution_id: parse.data.institution_id as any,
+      session: parse.data.session as any,
+      roster: parse.data.roster as any,
+      check_ins: parse.data.check_ins as any,
+      config: parse.data.config as any,
     };
 
     const result = processBatchSession(input);
