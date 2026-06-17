@@ -254,6 +254,14 @@ const idCardTemplateSchema = z.object({
   template_json: z.record(z.any())
 });
 
+const enrollExamSchema = z.object({
+  exam_id: z.string().uuid(),
+});
+
+const generateTicketsSchema = z.object({
+  exam_id: z.string().uuid(),
+});
+
 // =========================================================================
 // 1. ATTENDANCE CONTROLLERS
 // =========================================================================
@@ -5172,5 +5180,348 @@ export async function getMyCourses(req: Request, res: Response) {
   } catch (err) {
     logger.error('getMyCourses error:', err);
     return res.status(500).json({ success: false, error: 'Failed to load your courses.' });
+  }
+}
+
+// =========================================================================
+// EXAM ENROLLMENT & HALL TICKET CONTROLLERS
+// =========================================================================
+
+export async function enrollInExam(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const parse = enrollExamSchema.safeParse(req.body);
+    if (!parse.success) return res.status(400).json({ success: false, error: parse.error.errors[0].message });
+
+    const { exam_id } = parse.data;
+
+    // Get student record
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id, institution_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!student) return res.status(404).json({ success: false, error: 'Student profile not found.' });
+
+    // Check exam exists
+    const { data: exam } = await supabaseAdmin
+      .from('exams')
+      .select('id, name, end_date')
+      .eq('id', exam_id)
+      .maybeSingle();
+
+    if (!exam) return res.status(404).json({ success: false, error: 'Exam not found.' });
+
+    // Check if enrollment deadline has passed
+    if (exam.end_date && new Date(exam.end_date) < new Date()) {
+      return res.status(400).json({ success: false, error: 'Enrollment deadline has passed for this exam.' });
+    }
+
+    // Check for duplicate enrollment
+    const { data: existing } = await supabaseAdmin
+      .from('exam_enrollments')
+      .select('id, status')
+      .eq('exam_id', exam_id)
+      .eq('student_id', student.id)
+      .maybeSingle();
+
+    if (existing) {
+      if (existing.status === 'enrolled') {
+        return res.status(409).json({ success: false, error: 'You are already enrolled in this exam.' });
+      }
+      // Re-enroll if previously cancelled
+      const { data, error } = await supabaseAdmin
+        .from('exam_enrollments')
+        .update({ status: 'enrolled', enrolled_at: new Date().toISOString() })
+        .eq('id', existing.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return res.status(200).json({ success: true, enrollment: data });
+    }
+
+    // Create enrollment
+    const { data, error } = await supabaseAdmin
+      .from('exam_enrollments')
+      .insert({
+        institution_id: student.institution_id,
+        exam_id,
+        student_id: student.id,
+        status: 'enrolled',
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+    return res.status(201).json({ success: true, enrollment: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getExamEnrollments(req: Request, res: Response) {
+  try {
+    const { id: exam_id } = req.params;
+    if (!exam_id) return res.status(400).json({ success: false, error: 'exam_id required.' });
+
+    const { data, error } = await supabaseAdmin
+      .from('exam_enrollments')
+      .select('*, students(roll_number, users(name, email, phone))')
+      .eq('exam_id', exam_id)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    const enrollments = (data || []).map((e: any) => ({
+      ...e,
+      student_name: e.students?.users?.name || 'Unknown',
+      roll_number: e.students?.roll_number || 'N/A',
+      student_email: e.students?.users?.email || '',
+    }));
+
+    return res.status(200).json({ success: true, enrollments });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getMyExamEnrollments(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!student) return res.status(404).json({ success: false, error: 'Student profile not found.' });
+
+    const { data, error } = await supabaseAdmin
+      .from('exam_enrollments')
+      .select('*, exams(name, start_date, end_date, type, department_id)')
+      .eq('student_id', student.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return res.status(200).json({ success: true, enrollments: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function cancelEnrollment(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const { id } = req.params;
+
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!student) return res.status(404).json({ success: false, error: 'Student profile not found.' });
+
+    const { data, error } = await supabaseAdmin
+      .from('exam_enrollments')
+      .update({ status: 'cancelled' })
+      .eq('id', id)
+      .eq('student_id', student.id)
+      .select()
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'Enrollment not found.' });
+
+    return res.status(200).json({ success: true, enrollment: data });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function generateHallTickets(req: Request, res: Response) {
+  try {
+    const parse = generateTicketsSchema.safeParse(req.body);
+    if (!parse.success) return res.status(400).json({ success: false, error: parse.error.errors[0].message });
+
+    const { exam_id } = parse.data;
+
+    const { data, error } = await supabaseAdmin.rpc('generate_hall_tickets', { p_exam_id: exam_id });
+    if (error) throw error;
+
+    const result = data?.[0];
+    if (result?.success) {
+      return res.status(200).json({ success: true, message: result.message, tickets_generated: result.tickets_generated });
+    } else {
+      return res.status(400).json({ success: false, error: result?.message || 'Failed to generate tickets.' });
+    }
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getMyHallTickets(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!student) return res.status(404).json({ success: false, error: 'Student profile not found.' });
+
+    const { data, error } = await supabaseAdmin
+      .from('hall_tickets')
+      .select('*, exams(name, start_date, end_date, type)')
+      .eq('student_id', student.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+    return res.status(200).json({ success: true, tickets: data || [] });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function getHallTicketDetail(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+
+    const { data, error } = await supabaseAdmin
+      .from('hall_tickets')
+      .select('*, exams(name, start_date, end_date, type), students(roll_number, users(name, email, phone, avatar_url))')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ success: false, error: 'Hall ticket not found.' });
+
+    return res.status(200).json({
+      success: true,
+      ticket: {
+        ...data,
+        student_name: data.students?.users?.name || 'Unknown',
+        roll_number: data.students?.roll_number || 'N/A',
+        student_email: data.students?.users?.email || '',
+        student_phone: data.students?.users?.phone || '',
+        student_photo: data.students?.users?.avatar_url || '',
+        exam_name: data.exams?.name || 'Unknown',
+      },
+    });
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
+  }
+}
+
+export async function downloadHallTicketPdf(req: Request, res: Response) {
+  try {
+    const { id } = req.params;
+
+    const { data: ticket, error } = await supabaseAdmin
+      .from('hall_tickets')
+      .select('*, exams(name, start_date, end_date, type), students(roll_number, users(name, email, phone, avatar_url, institution_id))')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw error;
+    if (!ticket) return res.status(404).json({ success: false, error: 'Hall ticket not found.' });
+
+    const studentName = ticket.students?.users?.name || 'Unknown Student';
+    const rollNumber = ticket.students?.roll_number || 'N/A';
+    const examName = ticket.exams?.name || 'Exam';
+    const examDate = ticket.exam_date || ticket.exams?.start_date || 'TBD';
+    const examShift = ticket.exam_shift || 'Morning';
+    const roomNumber = ticket.room_number || 'TBD';
+    const seatNumber = ticket.seat_number || 'TBD';
+    const ticketNumber = ticket.ticket_number || 'N/A';
+    const qrToken = ticket.qr_token || '';
+
+    // Generate PDF using pdfkit
+    const PDFDocument = (await import('pdfkit')).default;
+    const doc = new PDFDocument({ size: 'A4', margin: 50 });
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="hall-ticket-${ticketNumber}.pdf"`);
+    doc.pipe(res);
+
+    // Header
+    doc.fontSize(22).font('Helvetica-Bold').text('HALL TICKET / ADMIT CARD', { align: 'center' });
+    doc.moveDown(0.5);
+    doc.fontSize(10).font('Helvetica').text('Institution of Higher Education', { align: 'center' });
+    doc.moveDown(1);
+
+    // Divider
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#6C2BD9');
+    doc.moveDown(1);
+
+    // Ticket Number
+    doc.fontSize(12).font('Helvetica-Bold').text(`Ticket No: ${ticketNumber}`, { align: 'right' });
+    doc.moveDown(1);
+
+    // Student Details
+    doc.fontSize(14).font('Helvetica-Bold').text('Student Details');
+    doc.moveDown(0.3);
+    doc.fontSize(11).font('Helvetica');
+    doc.text(`Name: ${studentName}`);
+    doc.text(`Roll Number: ${rollNumber}`);
+    if (ticket.student_email) doc.text(`Email: ${ticket.student_email}`);
+    if (ticket.student_phone) doc.text(`Phone: ${ticket.student_phone}`);
+    doc.moveDown(1);
+
+    // Exam Details
+    doc.fontSize(14).font('Helvetica-Bold').text('Examination Details');
+    doc.moveDown(0.3);
+    doc.fontSize(11).font('Helvetica');
+    doc.text(`Exam: ${examName}`);
+    doc.text(`Type: ${ticket.exams?.type || 'Written'}`);
+    doc.text(`Date: ${examDate}`);
+    doc.text(`Shift: ${examShift}`);
+    doc.moveDown(1);
+
+    // Seat Details
+    doc.fontSize(14).font('Helvetica-Bold').text('Seat Allocation');
+    doc.moveDown(0.3);
+    doc.fontSize(11).font('Helvetica');
+    doc.text(`Room Number: ${roomNumber}`);
+    doc.text(`Seat Number: ${seatNumber}`);
+    doc.moveDown(1);
+
+    // QR Token
+    doc.fontSize(10).font('Helvetica').text(`QR Token: ${qrToken}`, { align: 'center' });
+    doc.moveDown(1);
+
+    // Divider
+    doc.moveTo(50, doc.y).lineTo(545, doc.y).stroke('#6C2BD9');
+    doc.moveDown(1);
+
+    // Instructions
+    doc.fontSize(12).font('Helvetica-Bold').text('Instructions');
+    doc.moveDown(0.3);
+    doc.fontSize(9).font('Helvetica');
+    doc.text('1. Carry this hall ticket along with a valid photo ID to the examination hall.');
+    doc.text('2. Arrive at least 30 minutes before the scheduled exam time.');
+    doc.text('3. Electronic devices are strictly prohibited inside the examination hall.');
+    doc.text('4. Follow all invigilator instructions and examination rules.');
+    doc.text('5. This hall ticket is non-transferable and must be presented upon request.');
+    doc.moveDown(1);
+
+    // Footer
+    doc.fontSize(8).font('Helvetica').fillColor('#888888')
+      .text(`Generated on: ${new Date().toLocaleDateString('en-IN')} | This is a system-generated document.`, { align: 'center' });
+
+    doc.end();
+  } catch (err: any) {
+    return res.status(500).json({ success: false, error: err.message });
   }
 }

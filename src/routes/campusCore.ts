@@ -172,6 +172,14 @@ import {
   dropCourse,
   getMyCourses,
   exportCiaMarks,
+  enrollInExam,
+  getExamEnrollments,
+  getMyExamEnrollments,
+  cancelEnrollment,
+  generateHallTickets,
+  getMyHallTickets,
+  getHallTicketDetail,
+  downloadHallTicketPdf,
 } from '../controllers/campusCore';
 import { authMiddleware, requireRole } from '../middleware/auth';
 
@@ -527,5 +535,17 @@ router.post('/courses/drop', requireRole(['Student']), dropCourse);
 // 29. CIA UNIVERSITY PORTAL EXPORT
 // =========================================================================
 router.get('/cia/export', requireRole(['Admin', 'SuperAdmin', 'Teacher', 'Staff']), exportCiaMarks);
+
+// =========================================================================
+// 33. EXAM ENROLLMENT & HALL TICKET ROUTERS
+// =========================================================================
+router.post('/exams/:id/enroll', requireRole(['Student']), enrollInExam);
+router.get('/exams/:id/enrollments', requireRole(['Admin', 'SuperAdmin', 'Teacher']), getExamEnrollments);
+router.get('/exams/my-enrollments', requireRole(['Student']), getMyExamEnrollments);
+router.delete('/exams/enrollment/:id', requireRole(['Student']), cancelEnrollment);
+router.post('/hall-tickets/generate', requireRole(['Admin', 'SuperAdmin']), generateHallTickets);
+router.get('/hall-tickets/my', requireRole(['Student']), getMyHallTickets);
+router.get('/hall-tickets/:id', getHallTicketDetail);
+router.get('/hall-tickets/:id/pdf', downloadHallTicketPdf);
 
 export default router;

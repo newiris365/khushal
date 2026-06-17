@@ -4,7 +4,7 @@ import PortalShell, { SidebarLink } from '../../components/PortalShell';
 import {
   QrCode, Calendar, CalendarDays, CreditCard, ShoppingBag, Home, BookOpen,
   Award, Dumbbell, Bus, MessageCircle, FileText, Bell, User, CheckCircle, Briefcase,
-  Upload, Download, Wallet, CalendarCheck, UserCircle, GraduationCap
+  Upload, Download, Wallet, CalendarCheck, UserCircle, GraduationCap, ClipboardList
 } from 'lucide-react';
 
 const studentLinks: SidebarLink[] = [
@@ -26,6 +26,7 @@ const studentLinks: SidebarLink[] = [
   { label: 'FitZone', href: '/student/gym', icon: Dumbbell },
   { label: 'Transit GPS', href: '/transit', icon: Bus },
   { label: 'Exam Results', href: '/student/results', icon: FileText },
+  { label: 'Exam Enrollment', href: '/student/exams', icon: ClipboardList },
   { label: 'Notices', href: '/student/notices', icon: Bell },
   { label: 'ID Card', href: '/student/idcard', icon: User },
   { label: 'AI Assistant', href: '/ai/search', icon: MessageCircle, badge: 'AI' },

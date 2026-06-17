@@ -24,6 +24,7 @@ const adminLinks: SidebarLink[] = [
   { label: 'Fee Escalation', href: '/admin/fees/escalation', icon: AlertTriangle },
   { label: 'Exams & Results', href: '/admin/exams', icon: FileText },
   { label: 'Exam Seating', href: '/admin/exam/seating', icon: Armchair },
+  { label: 'Exam Enrollment', href: '/admin/exam/enrollment', icon: ClipboardList },
   { label: 'Academic Calendar', href: '/admin/calendar', icon: Calendar },
   { label: 'Defaulter Report', href: '/admin/reports/defaulters', icon: BarChart3 },
   { label: 'Canteen', href: '/admin/canteen', icon: ShoppingBag },
