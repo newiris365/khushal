@@ -223,6 +223,14 @@ const noticeSchema = z.object({
   expires_at: z.string().optional()
 });
 
+const courseRegisterSchema = z.object({
+  course_id: z.string().uuid(),
+});
+
+const courseDropSchema = z.object({
+  registration_id: z.string().uuid(),
+});
+
 const examSchema = z.object({
   name: z.string(),
   department_id: z.string().uuid(),
@@ -4952,5 +4960,217 @@ export async function creditWallet(req: Request, res: Response) {
   } catch (err) {
     logger.error('creditWallet error:', err);
     return res.status(500).json({ success: false, error: 'Wallet credit failed.' });
+  }
+}
+
+// =========================================================================
+// COURSE REGISTRATION
+// =========================================================================
+export async function getAvailableCourses(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id, department_id, semester, institution_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!student) return res.status(404).json({ success: false, error: 'Student not found' });
+
+    const academicYear = req.query.academic_year as string || new Date().getFullYear().toString();
+
+    const { data: courses, error } = await supabaseAdmin
+      .from('courses')
+      .select(`
+        id, course_code, course_name, credits, course_type, semester, academic_year, is_active,
+        department:departments(id, name)
+      `)
+      .eq('institution_id', student.institution_id)
+      .eq('is_active', true)
+      .or(`semester.is.null,semester.eq.${student.semester}`);
+
+    if (error) throw error;
+
+    const { data: registrations } = await supabaseAdmin
+      .from('course_registrations')
+      .select('id, course_id, status, registered_at')
+      .eq('student_id', student.id)
+      .eq('academic_year', academicYear);
+
+    const regMap = new Map((registrations || []).map((r: any) => [r.course_id, r]));
+
+    const enriched = (courses || []).map((c: any) => ({
+      ...c,
+      department_name: c.department?.name || null,
+      registration: regMap.get(c.id) || null,
+      is_registered: regMap.has(c.id) && regMap.get(c.id)?.status === 'active',
+    }));
+
+    return res.status(200).json({ success: true, courses: enriched, semester: student.semester });
+  } catch (err) {
+    logger.error('getAvailableCourses error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to load courses.' });
+  }
+}
+
+export async function registerForCourse(req: Request, res: Response) {
+  try {
+    const parse = courseRegisterSchema.safeParse(req.body);
+    if (!parse.success) return res.status(400).json({ success: false, error: parse.error.errors[0].message });
+
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id, department_id, semester, institution_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!student) return res.status(404).json({ success: false, error: 'Student not found' });
+
+    const { data: course } = await supabaseAdmin
+      .from('courses')
+      .select('id, credits, course_type, semester, is_active')
+      .eq('id', parse.data.course_id)
+      .maybeSingle();
+
+    if (!course || !course.is_active) {
+      return res.status(404).json({ success: false, error: 'Course not found or inactive.' });
+    }
+
+    if (course.semester && course.semester !== student.semester) {
+      return res.status(400).json({ success: false, error: `This course is for semester ${course.semester}. You are in semester ${student.semester}.` });
+    }
+
+    const academicYear = new Date().getFullYear().toString();
+
+    const { data: existing } = await supabaseAdmin
+      .from('course_registrations')
+      .select('id, status')
+      .eq('student_id', student.id)
+      .eq('course_id', parse.data.course_id)
+      .eq('academic_year', academicYear)
+      .maybeSingle();
+
+    if (existing && existing.status === 'active') {
+      return res.status(400).json({ success: false, error: 'Already registered for this course.' });
+    }
+
+    const { data: activeRegs } = await supabaseAdmin
+      .from('course_registrations')
+      .select('id, course:courses(credits)')
+      .eq('student_id', student.id)
+      .eq('academic_year', academicYear)
+      .eq('status', 'active');
+
+    const totalCredits = (activeRegs || []).reduce((sum: number, r: any) => sum + (r.course?.credits || 0), 0);
+    if (totalCredits + (course.credits || 0) > 24) {
+      return res.status(400).json({ success: false, error: `Cannot exceed 24 credits per semester. Currently registered: ${totalCredits} credits.` });
+    }
+
+    if (existing && existing.status === 'dropped') {
+      const { error } = await supabaseAdmin
+        .from('course_registrations')
+        .update({ status: 'active', dropped_at: null, registered_at: new Date().toISOString() })
+        .eq('id', existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabaseAdmin
+        .from('course_registrations')
+        .insert({
+          institution_id: student.institution_id,
+          student_id: student.id,
+          course_id: parse.data.course_id,
+          academic_year: academicYear,
+          semester: student.semester,
+        });
+      if (error) throw error;
+    }
+
+    return res.status(200).json({ success: true, message: 'Course registered successfully.' });
+  } catch (err) {
+    logger.error('registerForCourse error:', err);
+    return res.status(500).json({ success: false, error: 'Registration failed.' });
+  }
+}
+
+export async function dropCourse(req: Request, res: Response) {
+  try {
+    const parse = courseDropSchema.safeParse(req.body);
+    if (!parse.success) return res.status(400).json({ success: false, error: parse.error.errors[0].message });
+
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!student) return res.status(404).json({ success: false, error: 'Student not found' });
+
+    const { data: registration } = await supabaseAdmin
+      .from('course_registrations')
+      .select('id, student_id, status')
+      .eq('id', parse.data.registration_id)
+      .maybeSingle();
+
+    if (!registration || registration.student_id !== student.id) {
+      return res.status(404).json({ success: false, error: 'Registration not found.' });
+    }
+
+    if (registration.status !== 'active') {
+      return res.status(400).json({ success: false, error: 'Can only drop active registrations.' });
+    }
+
+    const { error } = await supabaseAdmin
+      .from('course_registrations')
+      .update({ status: 'dropped', dropped_at: new Date().toISOString() })
+      .eq('id', parse.data.registration_id);
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, message: 'Course dropped successfully.' });
+  } catch (err) {
+    logger.error('dropCourse error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to drop course.' });
+  }
+}
+
+export async function getMyCourses(req: Request, res: Response) {
+  try {
+    const userId = req.user?.id;
+    if (!userId) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    const { data: student } = await supabaseAdmin
+      .from('students')
+      .select('id, institution_id')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (!student) return res.status(404).json({ success: false, error: 'Student not found' });
+
+    const academicYear = req.query.academic_year as string || new Date().getFullYear().toString();
+
+    const { data: registrations, error } = await supabaseAdmin
+      .from('course_registrations')
+      .select(`
+        id, status, registered_at, dropped_at,
+        course:courses(id, course_code, course_name, credits, course_type, semester)
+      `)
+      .eq('student_id', student.id)
+      .eq('academic_year', academicYear)
+      .order('registered_at', { ascending: false });
+
+    if (error) throw error;
+
+    return res.status(200).json({ success: true, registrations: registrations || [] });
+  } catch (err) {
+    logger.error('getMyCourses error:', err);
+    return res.status(500).json({ success: false, error: 'Failed to load your courses.' });
   }
 }

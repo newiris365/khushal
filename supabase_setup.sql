@@ -2083,6 +2083,39 @@ CREATE TABLE IF NOT EXISTS co_po_mapping (
   UNIQUE(co_id, po_id)
 );
 
+-- COURSE REGISTRATIONS (Student course enrollment)
+CREATE TABLE IF NOT EXISTS course_registrations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  institution_id UUID REFERENCES institutions(id) ON DELETE CASCADE,
+  student_id UUID REFERENCES students(id) ON DELETE CASCADE,
+  course_id UUID REFERENCES courses(id) ON DELETE CASCADE,
+  academic_year TEXT NOT NULL,
+  semester INTEGER NOT NULL,
+  registered_at TIMESTAMPTZ DEFAULT now(),
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'dropped', 'completed')),
+  dropped_at TIMESTAMPTZ,
+  UNIQUE(student_id, course_id, academic_year, semester)
+);
+
+CREATE INDEX IF NOT EXISTS idx_course_reg_student ON course_registrations(student_id);
+CREATE INDEX IF NOT EXISTS idx_course_reg_course ON course_registrations(course_id);
+CREATE INDEX IF NOT EXISTS idx_course_reg_inst ON course_registrations(institution_id);
+
+-- RLS for course_registrations
+ALTER TABLE course_registrations ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "course_reg_select" ON course_registrations;
+CREATE POLICY "course_reg_select" ON course_registrations
+  FOR SELECT USING (institution_id = get_auth_institution_id());
+
+DROP POLICY IF EXISTS "course_reg_insert" ON course_registrations;
+CREATE POLICY "course_reg_insert" ON course_registrations
+  FOR INSERT WITH CHECK (institution_id = get_auth_institution_id());
+
+DROP POLICY IF EXISTS "course_reg_update" ON course_registrations;
+CREATE POLICY "course_reg_update" ON course_registrations
+  FOR UPDATE USING (institution_id = get_auth_institution_id());
+
 -- 6. CREATE assessment_tools TABLE
 CREATE TABLE IF NOT EXISTS assessment_tools (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

@@ -167,6 +167,10 @@ import {
   deductWallet,
   creditWallet,
   initiateWalletTopUp,
+  getAvailableCourses,
+  registerForCourse,
+  dropCourse,
+  getMyCourses,
   exportCiaMarks,
 } from '../controllers/campusCore';
 import { authMiddleware, requireRole } from '../middleware/auth';
@@ -512,7 +516,15 @@ router.post('/wallet/credit', requireRole(['Student']), creditWallet);
 router.post('/wallet/topup/initiate', requireRole(['Student']), initiateWalletTopUp);
 
 // =========================================================================
-// 28. CIA UNIVERSITY PORTAL EXPORT
+// 28. COURSE REGISTRATION
+// =========================================================================
+router.get('/courses/available', requireRole(['Student']), getAvailableCourses);
+router.get('/courses/my', requireRole(['Student']), getMyCourses);
+router.post('/courses/register', requireRole(['Student']), registerForCourse);
+router.post('/courses/drop', requireRole(['Student']), dropCourse);
+
+// =========================================================================
+// 29. CIA UNIVERSITY PORTAL EXPORT
 // =========================================================================
 router.get('/cia/export', requireRole(['Admin', 'SuperAdmin', 'Teacher', 'Staff']), exportCiaMarks);
 

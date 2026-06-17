@@ -280,6 +280,82 @@ function getMockDataForTable(tableName: string) {
       return [
         { id: 'rep1', report_type: 'weekly', report_date: today, pdf_url: 'https://example.com/mock-report.pdf', generated_at: new Date().toISOString() }
       ];
+    case 'academic_calendar':
+    case 'get_academic_calendar_upcoming':
+      return [
+        {
+          id: 'ev-1',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          title: 'Orientation & Induction Programme',
+          event_type: 'orientation',
+          description: 'Welcome orientation for new batch of students.',
+          start_date: '2026-07-02',
+          end_date: '2026-07-03',
+          semester: 1,
+          batch_year: '2026',
+          color: '#10B981',
+          days_until: 15
+        },
+        {
+          id: 'ev-2',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          title: 'Commencement of Classes (Sem 3, 5, 7)',
+          event_type: 'semester_start',
+          description: 'Classes begin for all odd semesters.',
+          start_date: '2026-07-15',
+          end_date: '2026-07-15',
+          semester: 5,
+          batch_year: '2024',
+          color: '#6366F1',
+          days_until: 28
+        },
+        {
+          id: 'ev-3',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          title: 'First Mid-Term Examination',
+          event_type: 'internal_exam',
+          description: 'Midterm testing for all departments.',
+          start_date: '2026-09-10',
+          end_date: '2026-09-15',
+          semester: 5,
+          batch_year: '2024',
+          color: '#F59E0B',
+          days_until: 85
+        },
+        {
+          id: 'ev-4',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          title: 'Autumn Break Vacation',
+          event_type: 'vacation',
+          description: 'College closed for festive autumn break.',
+          start_date: '2026-10-22',
+          end_date: '2026-10-28',
+          semester: null,
+          batch_year: '',
+          color: '#8B5CF6',
+          days_until: 127
+        },
+        {
+          id: 'ev-5',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          title: 'End Semester Practical Exams',
+          event_type: 'exam_start',
+          description: 'Practical lab assessments.',
+          start_date: '2026-11-20',
+          end_date: '2026-11-25',
+          semester: 5,
+          batch_year: '2024',
+          color: '#EF4444',
+          days_until: 156
+        }
+      ];
+    case 'academic_calendar_holidays':
+      return [
+        { id: 'hol-1', institution_id: 'a0000000-0000-0000-0000-000000000001', name: 'Independence Day', date: '2026-08-15', is_optional: false },
+        { id: 'hol-2', institution_id: 'a0000000-0000-0000-0000-000000000001', name: 'Raksha Bandhan', date: '2026-08-28', is_optional: true },
+        { id: 'hol-3', institution_id: 'a0000000-0000-0000-0000-000000000001', name: 'Gandhi Jayanti', date: '2026-10-02', is_optional: false },
+        { id: 'hol-4', institution_id: 'a0000000-0000-0000-0000-000000000001', name: 'Diwali Holiday', date: '2026-11-08', is_optional: false }
+      ];
     case 'employees':
       return [
         { id: 'emp1', name: 'Dr. John Doe', role: 'Professor', department: 'Computer Science' }
