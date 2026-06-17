@@ -91,25 +91,42 @@ export default function StudentCanteenMenu() {
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
 
   const placeOrder = async () => {
-    const mockStudentId = 's0000000-0000-0000-0000-000000000001';
+    let studentId = '00000000-0000-0000-0000-000000000000'; // Default valid UUID fallback
+    if (typeof window !== 'undefined') {
+      const userStr = localStorage.getItem('iris_user_profile');
+      if (userStr) {
+        try {
+          const user = JSON.parse(userStr);
+          if (user && user.id) studentId = user.id;
+        } catch (e) {}
+      }
+    }
+
     try {
-      await apiPost('/canteen/orders', {
-        student_id: mockStudentId,
+      const res = await apiPost('/canteen/orders', {
+        student_id: studentId,
         items: cart,
         total_amount: cartTotal,
         payment_method: 'Wallet',
         special_instructions: specialInstructions,
         offer_code: promoCode || undefined
       });
-    } catch (err) {}
-    setOrderPlaced(true);
-    setTimeout(() => {
-      setOrderPlaced(false);
-      setCart([]);
-      setShowCart(false);
-      setPromoCode('');
-      setSpecialInstructions('');
-    }, 3000);
+
+      if (res && res.success) {
+        setOrderPlaced(true);
+        setTimeout(() => {
+          setOrderPlaced(false);
+          setCart([]);
+          setShowCart(false);
+          setPromoCode('');
+          setSpecialInstructions('');
+        }, 3000);
+      } else {
+        alert('Failed to place order: ' + (res?.error || 'Unknown error'));
+      }
+    } catch (err) {
+      alert('An error occurred while placing order.');
+    }
   };
 
   return (
