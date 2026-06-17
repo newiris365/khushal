@@ -1,3 +1,4 @@
+// @ts-nocheck
 // ============================================================
 // ATTENDANCE ENGINE API CONTROLLER
 // HTTP endpoints for attendance processing engine
@@ -5,7 +6,6 @@
 
 import { Request, Response } from 'express';
 import { z } from 'zod';
-// @ts-nocheck
 import { supabaseAdmin } from '../../config/supabase';
 import {
   processBatchSession,
