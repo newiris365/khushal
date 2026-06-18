@@ -67,10 +67,11 @@ export default function StudentCanteenMenu() {
     const matchCat = activeCategory === 'all' || item.category === activeCategory;
     const matchSearch = item.item_name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchVeg = !vegOnly || item.is_veg;
-    const allergensList = Array.isArray(item.allergens)
-      ? item.allergens
-      : (typeof item.allergens === 'string'
-          ? item.allergens.split(',').map(x => x.trim()).filter(Boolean)
+    const rawAllergens = item.allergens as any;
+    const allergensList = Array.isArray(rawAllergens)
+      ? rawAllergens
+      : (typeof rawAllergens === 'string'
+          ? rawAllergens.split(',').map(x => x.trim()).filter(Boolean)
           : []);
     const matchAllergens = excludeAllergens.length === 0 || !allergensList.some((a: string) => excludeAllergens.includes(a.toLowerCase()));
     return matchCat && matchSearch && matchVeg && matchAllergens && item.is_available;
@@ -96,7 +97,7 @@ export default function StudentCanteenMenu() {
   const cartCount = cart.reduce((s, c) => s + c.qty, 0);
 
   const placeOrder = async () => {
-    let studentId = '00000000-0000-0000-0000-000000000000'; // Default valid UUID fallback
+    let studentId = 'c0000000-0000-0000-0000-000000000006'; // Default valid UUID fallback
     if (typeof window !== 'undefined') {
       const userStr = localStorage.getItem('iris_user_profile');
       if (userStr) {
@@ -304,10 +305,11 @@ export default function StudentCanteenMenu() {
 
                   {/* Allergen badges */}
                   {(() => {
-                    const allergensList = Array.isArray(item.allergens)
-                      ? item.allergens
-                      : (typeof item.allergens === 'string'
-                          ? item.allergens.split(',').map(x => x.trim()).filter(Boolean)
+                    const rawAllergens = item.allergens as any;
+                    const allergensList = Array.isArray(rawAllergens)
+                      ? rawAllergens
+                      : (typeof rawAllergens === 'string'
+                          ? rawAllergens.split(',').map(x => x.trim()).filter(Boolean)
                           : []);
                     if (allergensList.length === 0) return null;
                     return (

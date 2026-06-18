@@ -8,9 +8,6 @@
   NODE_ENV = "production"
   NODE_OPTIONS = "--max_old_space_size=4096"
 
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
-
 [[headers]]
   for = "/*"
   [headers.values]
