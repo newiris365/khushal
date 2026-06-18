@@ -215,8 +215,8 @@ app.set('trust proxy', 1);
 app.use(helmet());
 app.use(cors({
   origin: '*', // Whitelisted domains should be configured here in production
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  allowedHeaders: ['Content-Type', 'Authorization']
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Device-ID']
 }));
 
 app.use(express.json());
