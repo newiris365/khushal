@@ -6,7 +6,8 @@ import {
   LayoutDashboard, Users, CalendarDays, CreditCard, ShoppingBag, BookOpen,
   Shield, Dumbbell, Bus, BrainCircuit, ClipboardList, GraduationCap,
   Home, Bell, Award, FileText, QrCode, Calendar, MessageCircle, User,
-  AlertTriangle, Upload, TrendingUp, Lightbulb, Settings, UserCheck, Clock, KeyRound, Route, MapPin, Bed, CheckCircle
+  AlertTriangle, Upload, TrendingUp, Lightbulb, Settings, UserCheck, Clock, KeyRound, Route, MapPin, Bed, CheckCircle,
+  ListOrdered, UtensilsCrossed, Package, ShieldCheck, BarChart3, ChefHat, UserCircle
 } from 'lucide-react';
 
 const adminLinks: SidebarLink[] = [
@@ -43,6 +44,19 @@ const studentLinks: SidebarLink[] = [
   { label: 'Notices', href: '/student/notices', icon: Bell },
   { label: 'ID Card', href: '/student/idcard', icon: User },
   { label: 'AI Assistant', href: '/ai/search', icon: MessageCircle, badge: 'AI' },
+];
+
+const vendorLinks: SidebarLink[] = [
+  { label: 'Dashboard', href: '/vendor/dashboard', icon: LayoutDashboard },
+  { label: 'Live Orders (KOT)', href: '/vendor/orders', icon: ClipboardList },
+  { label: 'Queue Monitor', href: '/vendor/canteen/queue', icon: ListOrdered },
+  { label: 'Menu Management', href: '/vendor/menu', icon: UtensilsCrossed },
+  { label: 'Inventory', href: '/vendor/canteen/inventory', icon: Package },
+  { label: 'Hygiene Checks', href: '/vendor/canteen/hygiene', icon: ShieldCheck },
+  { label: 'Analytics', href: '/vendor/canteen/analytics', icon: TrendingUp },
+  { label: 'Daily Sales', href: '/vendor/sales', icon: BarChart3 },
+  { label: 'Prep List', href: '/vendor/prep', icon: ChefHat },
+  { label: 'Profile', href: '/profile', icon: UserCircle },
 ];
 
 const wardenLinks: SidebarLink[] = [
@@ -134,11 +148,16 @@ export default function AiLayout({ children }: { children: React.ReactNode }) {
   let portalBadge = "Student";
   let accentColor = "#06B6D4";
 
-  if (role === 'Admin' || role === 'SuperAdmin' || role === 'Vendor') {
+  if (role === 'Admin' || role === 'SuperAdmin') {
     links = adminLinks;
     portalName = "Admin Console";
     portalBadge = "Admin";
     accentColor = "#6C2BD9";
+  } else if (role === 'Vendor') {
+    links = vendorLinks;
+    portalName = "Canteen Portal";
+    portalBadge = "Vendor";
+    accentColor = "#EA580C";
   } else if (role === 'Warden') {
     links = wardenLinks;
     portalName = "Warden Portal";

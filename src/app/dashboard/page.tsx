@@ -42,9 +42,9 @@ export default function GenericDashboard() {
       { label: 'Passengers', icon: Users, href: '/transit/subscription', desc: 'View student subscriptions on your route' }
     ],
     Vendor: [
-      { label: 'Canteen Menu', icon: ClipboardList, href: '/admin/canteen/menu', desc: 'Manage food items and availability' },
-      { label: 'Orders', icon: LayoutDashboard, href: '/admin/canteen/orders', desc: 'View and process incoming orders' },
-      { label: 'Revenue', icon: Bell, href: '/admin/canteen/offers', desc: 'Daily and monthly sales summary' }
+      { label: 'Canteen Menu', icon: ClipboardList, href: '/vendor/menu', desc: 'Manage food items and availability' },
+      { label: 'Orders', icon: LayoutDashboard, href: '/vendor/orders', desc: 'View and process incoming orders' },
+      { label: 'Revenue & Sales', icon: Bell, href: '/vendor/sales', desc: 'Daily and monthly sales summary' }
     ],
     Parent: [
       { label: 'Ward Attendance', icon: Calendar, href: '/parent/attendance', desc: 'Monitor your child\'s attendance' },

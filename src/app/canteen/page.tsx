@@ -49,7 +49,7 @@ const FEATURES = [
   {
     title: 'Browse Menu',
     description: 'Explore the full canteen menu with categories, prices and nutritional info.',
-    href: '/admin/canteen/menu',
+    href: '/student/canteen',
     icon: UtensilsCrossed,
     color: 'from-pink-500/20 to-pink-500/5',
     iconColor: 'text-pink-400',
