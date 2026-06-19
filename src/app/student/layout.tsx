@@ -8,8 +8,9 @@ import {
 } from 'lucide-react';
 
 const studentLinks: SidebarLink[] = [
+  { label: 'Mark Attendance', href: '/student/attendance/marking', icon: CheckCircle },
   { label: 'Attendance QR', href: '/student/dashboard', icon: QrCode },
-  { label: 'My Attendance', href: '/student/attendance', icon: CheckCircle },
+  { label: 'My Attendance', href: '/student/attendance', icon: Calendar },
   { label: 'Timetable', href: '/student/timetable', icon: CalendarDays },
   { label: 'Academic Calendar', href: '/student/calendar', icon: Calendar },
   { label: 'Course Registration', href: '/student/courses', icon: GraduationCap },

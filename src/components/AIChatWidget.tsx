@@ -19,6 +19,7 @@ interface Message {
 export default function AIChatWidget() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [mounted, setMounted] = useState(false);
   const [inputMsg, setInputMsg] = useState('');
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<'student' | 'parent'>('student');
@@ -28,6 +29,7 @@ export default function AIChatWidget() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    setMounted(true);
     // Load or generate session_id
     let savedSession = localStorage.getItem('iris_ai_session_id');
     if (!savedSession) {
@@ -252,6 +254,9 @@ export default function AIChatWidget() {
     }
     return ["My attendance?", "Fee status", "Today's timetable", "Canteen menu", "Next exam?"];
   };
+
+  // Don't render anything on the server to prevent hydration mismatches
+  if (!mounted) return null;
 
   return (
     <>

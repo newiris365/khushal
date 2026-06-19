@@ -31,19 +31,21 @@ export default function CampusDetailPanel({ institutionId, institutionName, onCl
   const [activeModules, setActiveModules] = useState<string[]>([]);
   const [monthlyActivity, setMonthlyActivity] = useState<{ month: string; count: number }[]>([]);
   const [totalWalletBalance, setTotalWalletBalance] = useState(0);
+  const [institution, setInstitution] = useState<any>(null);
 
   useEffect(() => { loadDetail(); }, [institutionId]);
 
   const loadDetail = async () => {
     setLoading(true);
     try {
-      const [studentsRes, staffRes, attendanceRes, feesRes, featuresRes, walletRes] = await Promise.all([
+      const [studentsRes, staffRes, attendanceRes, feesRes, featuresRes, walletRes, instRes] = await Promise.all([
         supabase.from('students').select('id', { count: 'exact', head: true }).eq('institution_id', institutionId),
         supabase.from('staff').select('id', { count: 'exact', head: true }).eq('institution_id', institutionId),
         supabase.from('attendance_sessions').select('*').eq('institution_id', institutionId),
         supabase.from('fee_payments').select('amount_paid').eq('institution_id', institutionId),
         supabase.from('institution_features').select('feature_key, enabled').eq('institution_id', institutionId),
         supabase.from('students').select('wallet_balance').eq('institution_id', institutionId),
+        supabase.from('institutions').select('plan_tier, is_active, subscription_cycle, subscription_start_date, subscription_end_date, deactivate_date').eq('id', institutionId).single(),
       ]);
 
       setStudentCount(studentsRes.count || 0);
@@ -66,6 +68,8 @@ export default function CampusDetailPanel({ institutionId, institutionName, onCl
 
       const totalWB = (walletRes.data || []).reduce((acc, curr) => acc + Number(curr.wallet_balance || 0), 0);
       setTotalWalletBalance(totalWB);
+
+      setInstitution(instRes.data || null);
 
       const months = [];
       const now = new Date();
@@ -193,22 +197,48 @@ export default function CampusDetailPanel({ institutionId, institutionName, onCl
               </div>
             </div>
 
-            {/* Subscription Info placeholder */}
+            {/* Subscription Info */}
             <div className="bg-white/5 border border-white/5 rounded-2xl p-5">
               <div className="flex items-center gap-2 mb-3">
                 <Calendar className="w-4 h-4 text-amber-400" />
-                <span className="text-xs font-bold text-white">Subscription</span>
+                <span className="text-xs font-bold text-white">Subscription Details</span>
               </div>
-              <div className="grid grid-cols-2 gap-4 text-xs">
-                <div>
-                  <span className="text-[#C4B5FD]/50 block">Plan</span>
-                  <span className="text-white font-bold">Loading...</span>
+              {institution ? (
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-4 text-xs">
+                  <div>
+                    <span className="text-[#C4B5FD]/50 block">Plan Tier</span>
+                    <span className="text-white font-bold">{institution.plan_tier || 'Seed'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#C4B5FD]/50 block">Billing Cycle</span>
+                    <span className="text-white font-bold capitalize">{institution.subscription_cycle || 'monthly'}</span>
+                  </div>
+                  <div>
+                    <span className="text-[#C4B5FD]/50 block">Started On</span>
+                    <span className="text-white font-bold font-mono">
+                      {institution.subscription_start_date
+                        ? new Date(institution.subscription_start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : 'N/A'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[#C4B5FD]/50 block">Deactivate Date</span>
+                    <span className="text-white font-bold font-mono">
+                      {institution.deactivate_date || institution.subscription_end_date
+                        ? new Date(institution.deactivate_date || institution.subscription_end_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                        : 'N/A'}
+                    </span>
+                  </div>
+                  <div>
+                    <span className="text-[#C4B5FD]/50 block">Status</span>
+                    <span className={`font-bold ${institution.is_active ? 'text-emerald-400' : 'text-red-400'}`}>
+                      {institution.is_active ? 'Active' : 'Suspended'}
+                    </span>
+                  </div>
                 </div>
-                <div>
-                  <span className="text-[#C4B5FD]/50 block">Status</span>
-                  <span className="text-emerald-400 font-bold">Active</span>
-                </div>
-              </div>
+              ) : (
+                <div className="text-xs text-[#C4B5FD]/40 italic">Loading subscription data...</div>
+              )}
             </div>
           </div>
         )}

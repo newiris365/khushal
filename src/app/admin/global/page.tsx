@@ -6,7 +6,7 @@ import {
   Search, Plus, RefreshCw, ToggleLeft, ToggleRight,
   Sliders, ShieldAlert, Settings, Eye, EyeOff, Save,
   TrendingUp, CreditCard, Bell, Send, Trash2, Eye as EyeIcon,
-  IndianRupee, ChevronDown, ChevronUp
+  IndianRupee, ChevronDown, ChevronUp, CalendarDays, RotateCcw
 } from 'lucide-react';
 import { supabase } from '../../../lib/supabase';
 import {
@@ -28,6 +28,10 @@ interface Institution {
   phone?: string;
   created_at: string;
   subscription_status?: string;
+  subscription_start_date?: string;
+  subscription_cycle?: 'monthly' | 'yearly';
+  subscription_end_date?: string;
+  deactivate_date?: string;
 }
 
 interface GlobalUser {
@@ -122,7 +126,10 @@ export default function SuperAdminConsole() {
 
   const [showAddModal, setShowAddModal] = useState(false);
   const [newInst, setNewInst] = useState({
-    name: '', type: 'university', email: '', phone: '', plan_tier: 'Campus', is_active: true
+    name: '', type: 'university', email: '', phone: '', plan_tier: 'Campus', is_active: true,
+    subscription_start_date: new Date().toISOString().split('T')[0],
+    subscription_cycle: 'monthly' as 'monthly' | 'yearly',
+    subscription_end_date: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().split('T')[0],
   });
 
   const [showEditModal, setShowEditModal] = useState(false);
@@ -206,8 +213,8 @@ export default function SuperAdminConsole() {
     } catch (err) {
       console.warn('Fallback data used:', err);
       const mockInst: Institution[] = [
-        { id: 'a0000000-0000-0000-0000-000000000001', name: 'Siddharth Institute of Technology', type: 'university', plan_tier: 'Enterprise', plan_price_monthly: 50000, is_active: true, email: 'admin@sit.edu', created_at: '2026-01-15T10:00:00Z' },
-        { id: 'a0000000-0000-0000-0000-000000000002', name: 'Jodhpur National School', type: 'school', plan_tier: 'Campus', plan_price_monthly: 10000, is_active: true, email: 'office@jns.edu', created_at: '2026-03-10T12:30:00Z' },
+        { id: 'a0000000-0000-0000-0000-000000000001', name: 'Siddharth Institute of Technology', type: 'university', plan_tier: 'Enterprise', plan_price_monthly: 50000, is_active: true, email: 'admin@sit.edu', created_at: '2026-01-15T10:00:00Z', subscription_start_date: '2026-01-15', subscription_cycle: 'yearly', subscription_end_date: '2027-01-15' },
+        { id: 'a0000000-0000-0000-0000-000000000002', name: 'Jodhpur National School', type: 'school', plan_tier: 'Campus', plan_price_monthly: 10000, is_active: true, email: 'office@jns.edu', created_at: '2026-03-10T12:30:00Z', subscription_start_date: '2026-03-10', subscription_cycle: 'monthly', subscription_end_date: '2026-07-10' },
       ];
       setInstitutions(mockInst);
       setStats({ totalInstitutions: 2, totalUsers: 4, totalRevenue: 60000 * 5, mrr: 60000, rlsCompliant: true });
@@ -449,20 +456,52 @@ export default function SuperAdminConsole() {
         phone: newInst.phone, plan_tier: newInst.plan_tier, is_active: newInst.is_active,
         plan_price_monthly: PLAN_PRICING[newInst.plan_tier] || 0,
         subscription_status: 'active',
-        subscription_start_date: new Date().toISOString(),
+        subscription_start_date: newInst.subscription_start_date,
+        subscription_cycle: newInst.subscription_cycle,
+        subscription_end_date: newInst.subscription_end_date,
+        deactivate_date: newInst.subscription_end_date,
       });
       if (error) throw error;
       setShowAddModal(false);
       loadSystemData();
-      setNewInst({ name: '', type: 'university', email: '', phone: '', plan_tier: 'Campus', is_active: true });
+      setNewInst({ name: '', type: 'university', email: '', phone: '', plan_tier: 'Campus', is_active: true, subscription_start_date: new Date().toISOString().split('T')[0], subscription_cycle: 'monthly', subscription_end_date: new Date(Date.now() + 30 * 24 * 3600 * 1000).toISOString().split('T')[0] });
     } catch (err: any) {
       const simulated: Institution = {
         id: 'new-' + Math.random().toString(36).slice(2, 8), ...newInst,
         plan_price_monthly: PLAN_PRICING[newInst.plan_tier] || 0,
+        deactivate_date: newInst.subscription_end_date,
         created_at: new Date().toISOString()
       };
       setInstitutions([simulated, ...institutions]);
       setShowAddModal(false);
+    }
+  };
+
+  // Renew / Extend subscription
+  const handleRenewSubscription = async (inst: Institution) => {
+    const cycle = inst.subscription_cycle || 'monthly';
+    const currentEnd = inst.subscription_end_date ? new Date(inst.subscription_end_date) : new Date();
+    const baseDate = currentEnd > new Date() ? currentEnd : new Date();
+    const newEnd = new Date(baseDate);
+    if (cycle === 'yearly') {
+      newEnd.setFullYear(newEnd.getFullYear() + 1);
+    } else {
+      newEnd.setMonth(newEnd.getMonth() + 1);
+    }
+    const newEndStr = newEnd.toISOString().split('T')[0];
+    try {
+      const { error } = await supabase.from('institutions').update({
+        subscription_end_date: newEndStr,
+        deactivate_date: newEndStr,
+        subscription_status: 'active',
+        is_active: true,
+      }).eq('id', inst.id);
+      if (error) throw error;
+      loadSystemData();
+      alert(`Subscription renewed! New expiry: ${newEndStr}`);
+    } catch {
+      setInstitutions(prev => prev.map(i => i.id === inst.id ? { ...i, subscription_end_date: newEndStr, deactivate_date: newEndStr, is_active: true } : i));
+      alert(`Subscription renewed (sandbox)! New expiry: ${newEndStr}`);
     }
   };
 
@@ -497,6 +536,10 @@ export default function SuperAdminConsole() {
           name: editingInst.name, type: editingInst.type, email: editingInst.email,
           phone: editingInst.phone, plan_tier: editingInst.plan_tier, is_active: editingInst.is_active,
           plan_price_monthly: editingInst.plan_price_monthly,
+          subscription_start_date: editingInst.subscription_start_date,
+          subscription_cycle: editingInst.subscription_cycle,
+          subscription_end_date: editingInst.subscription_end_date,
+          deactivate_date: editingInst.subscription_end_date,
         })
         .eq('id', editingInst.id);
       if (error) throw error;
@@ -679,16 +722,19 @@ export default function SuperAdminConsole() {
                       <th className="py-3 px-4">Email</th>
                       <th className="py-3 px-4">Type</th>
                       <th className="py-3 px-4">Plan</th>
-                      <th className="py-3 px-4">Plan Revenue</th>
+                      <th className="py-3 px-4">Cycle</th>
+                      <th className="py-3 px-4">Started</th>
+                      <th className="py-3 px-4">Deactivate Date</th>
+                      <th className="py-3 px-4">Revenue</th>
                       <th className="py-3 px-4">Status</th>
                       <th className="py-3 px-4 text-right">Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {isLoading ? (
-                      <tr><td colSpan={7} className="py-10 text-center text-[#C4B5FD]/40 italic">Loading...</td></tr>
+                      <tr><td colSpan={10} className="py-10 text-center text-[#C4B5FD]/40 italic">Loading...</td></tr>
                     ) : institutions.length === 0 ? (
-                      <tr><td colSpan={7} className="py-10 text-center text-[#C4B5FD]/40 italic">No institutions found.</td></tr>
+                      <tr><td colSpan={10} className="py-10 text-center text-[#C4B5FD]/40 italic">No institutions found.</td></tr>
                     ) : institutions.map(inst => (
                       <tr key={inst.id} className="border-b border-white/5 hover:bg-white/5 transition-all">
                         <td className="py-3.5 px-4 font-semibold text-white">
@@ -714,6 +760,45 @@ export default function SuperAdminConsole() {
                           </select>
                         </td>
                         <td className="py-3.5 px-4">
+                          <span className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                            inst.subscription_cycle === 'yearly'
+                              ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
+                              : 'bg-cyan-500/10 border-cyan-500/20 text-cyan-400'
+                          }`}>
+                            {inst.subscription_cycle === 'yearly' ? 'Yearly' : 'Monthly'}
+                          </span>
+                        </td>
+                        <td className="py-3.5 px-4 text-[11px] text-[#C4B5FD]/70 font-mono">
+                          {inst.subscription_start_date
+                            ? new Date(inst.subscription_start_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+                            : new Date(inst.created_at).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="py-3.5 px-4">
+                          {(inst.deactivate_date || inst.subscription_end_date) ? (() => {
+                            const endDate = new Date(inst.deactivate_date || inst.subscription_end_date || '');
+                            const now = new Date();
+                            const daysLeft = Math.ceil((endDate.getTime() - now.getTime()) / (1000 * 3600 * 24));
+                            const isExpired = daysLeft < 0;
+                            const isExpiring = daysLeft >= 0 && daysLeft <= 30;
+                            return (
+                              <div className="flex flex-col">
+                                <span className={`text-[11px] font-mono font-bold ${
+                                  isExpired ? 'text-red-400' : isExpiring ? 'text-amber-400' : 'text-emerald-400'
+                                }`}>
+                                  {endDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}
+                                </span>
+                                <span className={`text-[9px] font-medium ${
+                                  isExpired ? 'text-red-400/70' : isExpiring ? 'text-amber-400/70' : 'text-emerald-400/50'
+                                }`}>
+                                  {isExpired ? `Expired ${Math.abs(daysLeft)}d ago` : `${daysLeft}d left`}
+                                </span>
+                              </div>
+                            );
+                          })() : (
+                            <span className="text-[11px] text-[#C4B5FD]/30 italic">Not set</span>
+                          )}
+                        </td>
+                        <td className="py-3.5 px-4">
                           <div className="flex items-center gap-1">
                             <span className="text-[#C4B5FD]/60 text-[10px]">₹</span>
                             <input
@@ -722,7 +807,7 @@ export default function SuperAdminConsole() {
                               onChange={(e) => updateInstitutionPrice(inst.id, Number(e.target.value))}
                               className="w-20 bg-black/30 border border-white/10 rounded px-2 py-1 text-white text-[11px] font-medium outline-none focus:border-violet-500"
                             />
-                            <span className="text-[#C4B5FD]/40 text-[10px]">/mo</span>
+                            <span className="text-[#C4B5FD]/40 text-[10px]">/{inst.subscription_cycle === 'yearly' ? 'yr' : 'mo'}</span>
                           </div>
                         </td>
                         <td className="py-3.5 px-4">
@@ -752,6 +837,13 @@ export default function SuperAdminConsole() {
                                 : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20'
                             }`}>
                             {inst.is_active ? 'Suspend' : 'Activate'}
+                          </button>
+                          <button
+                            onClick={() => handleRenewSubscription(inst)}
+                            className="px-2.5 py-1 rounded text-[10px] font-bold bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-400 border border-cyan-500/20 transition-all flex items-center gap-1"
+                            title={`Extend by 1 ${inst.subscription_cycle === 'yearly' ? 'year' : 'month'}`}
+                          >
+                            <RotateCcw className="w-3 h-3" /> Renew
                           </button>
                           <button
                             onClick={() => handleDeleteInstitution(inst.id)}
@@ -1262,6 +1354,30 @@ export default function SuperAdminConsole() {
                   value={newInst.email} onChange={(e) => setNewInst({ ...newInst, email: e.target.value })}
                   className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500" />
               </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[#C4B5FD] font-semibold">Start Date</label>
+                  <input type="date" required
+                    value={newInst.subscription_start_date}
+                    onChange={(e) => setNewInst({ ...newInst, subscription_start_date: e.target.value })}
+                    className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[#C4B5FD] font-semibold">Billing Cycle</label>
+                  <select value={newInst.subscription_cycle} onChange={(e) => setNewInst({ ...newInst, subscription_cycle: e.target.value as 'monthly' | 'yearly' })}
+                    className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500">
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[#C4B5FD] font-semibold">Expires On</label>
+                  <input type="date" required
+                    value={newInst.subscription_end_date}
+                    onChange={(e) => setNewInst({ ...newInst, subscription_end_date: e.target.value })}
+                    className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500" />
+                </div>
+              </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
                 <button type="button" onClick={() => setShowAddModal(false)}
                   className="px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-white font-bold">Cancel</button>
@@ -1321,6 +1437,31 @@ export default function SuperAdminConsole() {
                 <input type="email" required placeholder="contact@sit.edu"
                   value={editingInst.email || ''} onChange={(e) => setEditingInst({ ...editingInst, email: e.target.value })}
                   className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500" />
+              </div>
+              <div className="grid grid-cols-3 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-[#C4B5FD] font-semibold">Start Date</label>
+                  <input type="date"
+                    value={editingInst.subscription_start_date || ''}
+                    onChange={(e) => setEditingInst({ ...editingInst, subscription_start_date: e.target.value })}
+                    className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500" />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[#C4B5FD] font-semibold">Billing Cycle</label>
+                  <select value={editingInst.subscription_cycle || 'monthly'}
+                    onChange={(e) => setEditingInst({ ...editingInst, subscription_cycle: e.target.value as 'monthly' | 'yearly' })}
+                    className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500">
+                    <option value="monthly">Monthly</option>
+                    <option value="yearly">Yearly</option>
+                  </select>
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-[#C4B5FD] font-semibold">Expires On</label>
+                  <input type="date"
+                    value={editingInst.subscription_end_date || ''}
+                    onChange={(e) => setEditingInst({ ...editingInst, subscription_end_date: e.target.value })}
+                    className="bg-black/40 border border-white/10 p-2.5 rounded-xl text-white outline-none focus:border-violet-500" />
+                </div>
               </div>
               <div className="flex justify-end gap-3 pt-4 border-t border-white/5">
                 <button type="button" onClick={() => { setShowEditModal(false); setEditingInst(null); }}

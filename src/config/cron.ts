@@ -1685,3 +1685,54 @@ cron.schedule('0 */2 * * *', async () => {
   }
 });
 
+/**
+ * MODULE 30: Automatic Institution Subscription Expiry Auditor
+ * Runs daily at midnight — automatically deactivates institutions whose deactivate_date (or subscription_end_date) is in the past.
+ */
+cron.schedule('0 0 * * *', async () => {
+  logger.info('Running Automatic Institution Subscription Expiry Auditor cron job...');
+  try {
+    const { data: activeInstitutions, error } = await supabaseAdmin
+      .from('institutions')
+      .select('id, name, deactivate_date, subscription_end_date')
+      .eq('is_active', true);
+
+    if (error) {
+      logger.error('Error querying institutions for expiry check: ' + error.message);
+      return;
+    }
+
+    if (activeInstitutions && activeInstitutions.length > 0) {
+      const now = new Date();
+      const expiredIds: string[] = [];
+
+      for (const inst of activeInstitutions) {
+        const deactDateStr = inst.deactivate_date || inst.subscription_end_date;
+        if (deactDateStr) {
+          const deactDate = new Date(deactDateStr);
+          if (now > deactDate) {
+            expiredIds.push(inst.id);
+            logger.warn(`Institution subscription expired: ${inst.name} (id: ${inst.id}, expired on: ${deactDateStr})`);
+          }
+        }
+      }
+
+      if (expiredIds.length > 0) {
+        const { error: updateError } = await supabaseAdmin
+          .from('institutions')
+          .update({ is_active: false, subscription_status: 'expired' })
+          .in('id', expiredIds);
+
+        if (updateError) {
+          logger.error('Error auto-deactivating expired institutions: ' + updateError.message);
+        } else {
+          logger.info(`Auto-deactivated ${expiredIds.length} institutions whose subscription has expired.`);
+        }
+      }
+    }
+  } catch (err: any) {
+    logger.error('Error in Automatic Institution Subscription Expiry Auditor: ' + err.message);
+  }
+});
+
+

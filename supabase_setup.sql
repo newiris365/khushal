@@ -3170,6 +3170,7 @@ ALTER TABLE institutions ADD COLUMN IF NOT EXISTS plan_price_monthly DECIMAL(10,
 ALTER TABLE institutions ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(30) DEFAULT 'active';
 ALTER TABLE institutions ADD COLUMN IF NOT EXISTS subscription_start_date TIMESTAMP WITH TIME ZONE;
 ALTER TABLE institutions ADD COLUMN IF NOT EXISTS subscription_end_date TIMESTAMP WITH TIME ZONE;
+ALTER TABLE institutions ADD COLUMN IF NOT EXISTS deactivate_date TIMESTAMP WITH TIME ZONE;
 
 -- 2. Payment Configuration per institution
 CREATE TABLE IF NOT EXISTS payment_config (

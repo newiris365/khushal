@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  // Use SWC for faster compilation & minification
-  swcMinify: true,
+  // Next.js 16 uses Turbopack by default — empty config silences webpack conflict warning
+  turbopack: {},
 
   // Reduces unnecessary double-renders in dev mode
   reactStrictMode: true,

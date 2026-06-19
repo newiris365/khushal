@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   FileText, Award, Layers, Plus, Trash2, ArrowLeft,
-  Linkedin, Github, Globe, Save, HelpCircle, CheckCircle
+  Link2, CodeXml, Globe, Save, HelpCircle, CheckCircle
 } from 'lucide-react';
 import { apiGet, apiPut } from '../../../../lib/api';
 
@@ -175,7 +175,7 @@ export default function StudentPlacementProfile() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-2">
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] uppercase font-bold tracking-wider text-[#C4B5FD]/60 flex items-center gap-1">
-                  <Linkedin className="w-3 h-3 text-blue-400" /> LinkedIn URL
+                  <Link2 className="w-3 h-3 text-blue-400" /> LinkedIn URL
                 </label>
                 <input
                   type="url"
@@ -188,7 +188,7 @@ export default function StudentPlacementProfile() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-[10px] uppercase font-bold tracking-wider text-[#C4B5FD]/60 flex items-center gap-1">
-                  <Github className="w-3 h-3 text-white" /> GitHub URL
+                  <CodeXml className="w-3 h-3 text-white" /> GitHub URL
                 </label>
                 <input
                   type="url"

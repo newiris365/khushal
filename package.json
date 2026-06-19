@@ -4,7 +4,7 @@
   "description": "IRIS 365 AI-Powered Campus Operating System - Production Stack",
   "private": true,
   "scripts": {
-    "dev": "concurrently -n \"next,express\" -c \"cyan,magenta\" \"next dev\" \"ts-node-dev --project tsconfig.server.json --respawn --transpile-only --no-notify --ignore-watch src/app --ignore-watch src/components --ignore-watch src/lib --ignore-watch .next --ignore-watch node_modules src/server.ts\"",
+    "dev": "concurrently -n \"next,express\" -c \"cyan,magenta\" \"next dev --webpack\" \"tsx watch --tsconfig tsconfig.server.json src/server.ts\"",
     "build:frontend": "next build",
     "build:backend": "tsc --project tsconfig.server.json",
     "build": "next build",
@@ -34,15 +34,15 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "leaflet": "^1.9.4",
-    "lucide-react": "^0.383.0",
-    "next": "^14.2.3",
+    "lucide-react": "^1.21.0",
+    "next": "^16.2.9",
     "node-cron": "^3.0.3",
     "papaparse": "^5.5.3",
     "pdfkit": "^0.15.0",
     "postcss": "^8.4.38",
     "razorpay": "^2.9.6",
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "react-hook-form": "^7.51.5",
     "recharts": "^2.12.7",
     "socket.io": "^4.7.5",
@@ -51,6 +51,7 @@
     "tailwindcss": "^3.4.3",
     "typescript": "^5.4.5",
     "winston": "^3.13.0",
+    "xlsx": "^0.18.5",
     "zod": "^3.23.8"
   },
   "devDependencies": {
@@ -64,6 +65,6 @@
     "concurrently": "^8.2.2",
     "jest": "^29.7.0",
     "ts-jest": "^29.1.4",
-    "ts-node-dev": "^2.0.0"
+    "tsx": "^4.22.4"
   }
 }

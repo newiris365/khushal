@@ -53,7 +53,7 @@ export async function login(req: Request, res: Response) {
     // Fetch profile records from DB
     const { data: userProfile, error: profileError } = await supabaseAdmin
       .from('users')
-      .select('*, institutions(name, plan_tier)')
+      .select('*, institutions(name, plan_tier, is_active, deactivate_date, subscription_end_date)')
       .eq('email', email)
       .single();
 
@@ -63,6 +63,18 @@ export async function login(req: Request, res: Response) {
 
     if (!userProfile.is_active) {
       return res.status(403).json({ success: false, error: 'Your user profile has been suspended by the administrator.' });
+    }
+
+    // Check institution subscription status and deactivation date
+    if (userProfile.role !== 'SuperAdmin' && userProfile.institutions) {
+      const inst = userProfile.institutions as any;
+      if (!inst.is_active) {
+        return res.status(403).json({ success: false, error: 'Your institution has been suspended.' });
+      }
+      const deactDate = inst.deactivate_date || inst.subscription_end_date;
+      if (deactDate && new Date() > new Date(deactDate)) {
+        return res.status(403).json({ success: false, error: 'Your institution subscription has expired.' });
+      }
     }
 
 
@@ -134,12 +146,24 @@ export async function getMe(req: Request, res: Response) {
     // Fetch user details from database (bypass RLS as we query via Admin for self context retrieval)
     const { data: userProfile, error: profileError } = await supabaseAdmin
       .from('users')
-      .select('*, institutions(name, plan_tier)')
+      .select('*, institutions(name, plan_tier, is_active, deactivate_date, subscription_end_date)')
       .eq('id', req.user.id)
       .single();
 
     if (profileError || !userProfile) {
       return res.status(404).json({ success: false, error: 'User profile not found.' });
+    }
+
+    // Check institution subscription status and deactivation date
+    if (userProfile.role !== 'SuperAdmin' && userProfile.institutions) {
+      const inst = userProfile.institutions as any;
+      if (!inst.is_active) {
+        return res.status(403).json({ success: false, error: 'Your institution has been suspended.' });
+      }
+      const deactDate = inst.deactivate_date || inst.subscription_end_date;
+      if (deactDate && new Date() > new Date(deactDate)) {
+        return res.status(403).json({ success: false, error: 'Your institution subscription has expired.' });
+      }
     }
 
     // Normalize role to proper casing

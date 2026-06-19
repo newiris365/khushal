@@ -57,8 +57,10 @@ export default function PortalShell({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [disabledFeatures, setDisabledFeatures] = useState<Set<string>>(new Set());
   const [notifUnreadCount, setNotifUnreadCount] = useState(0);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
     const savedProfile = localStorage.getItem('iris_user_profile');
     if (savedProfile) {
       try { setProfile(JSON.parse(savedProfile)); } catch {}
@@ -223,7 +225,7 @@ export default function PortalShell({
         </nav>
 
         {/* User info at bottom */}
-        {profile && (
+        {mounted && profile && (
           <div className="p-4 border-t border-white/5 flex items-center justify-between">
             <Link
               href="/profile"
@@ -264,13 +266,13 @@ export default function PortalShell({
             <span className="text-[10px] text-[#C4B5FD]/50 font-medium hidden sm:block">
               {portalName}
             </span>
-            {profile && (
+            {mounted && profile && (
               <span className="text-xs text-[#C4B5FD] font-medium">
                 {profile.name?.split(' ')[0]}
               </span>
             )}
             {/* Notification Bell */}
-            {profile && profile.role !== 'SuperAdmin' && (
+            {mounted && profile && profile.role !== 'SuperAdmin' && (
               <a href="/admin/notifications"
                 className="relative p-2 rounded-xl bg-white/5 border border-white/10 hover:bg-white/10 transition-all text-[#C4B5FD]/60 hover:text-white">
                 <Bell className="w-4 h-4" />

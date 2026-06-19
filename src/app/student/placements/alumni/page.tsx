@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft, Users, Calendar, Clock, MessageCircle, Globe,
-  Linkedin, Award, CheckCircle, Search, Sparkles
+  Link2, Award, CheckCircle, Search, Sparkles
 } from 'lucide-react';
 import { apiGet, apiPost } from '../../../../lib/api';
 
@@ -171,7 +171,7 @@ export default function StudentAlumniMentors() {
 
                   {item.linkedin_url && (
                     <a href={item.linkedin_url} target="_blank" rel="noreferrer" className="text-[#C4B5FD]/40 hover:text-blue-400">
-                      <Linkedin className="w-4 h-4" />
+                      <Link2 className="w-4 h-4" />
                     </a>
                   )}
                 </div>

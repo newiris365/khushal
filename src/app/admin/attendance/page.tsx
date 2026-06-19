@@ -65,8 +65,8 @@ export default function AdminAttendancePage() {
               <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <h1 className="font-heading font-extrabold text-2xl text-white">Smart Attendance Hub</h1>
-              <p className="text-xs text-[#C4B5FD]/70 font-light">Audit roll-call logs, analyze lecture attendance, and approve regularization requests.</p>
+              <h1 className="font-heading font-extrabold text-2xl text-white" suppressHydrationWarning>Smart Attendance Hub</h1>
+              <p className="text-xs text-[#C4B5FD]/70 font-light">Launch roll-call logs, analyze lecture attendance, and approve regularization requests.</p>
             </div>
           </div>
 
