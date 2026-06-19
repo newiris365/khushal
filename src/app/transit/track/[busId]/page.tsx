@@ -10,7 +10,8 @@ import Skeleton from '../../../../components/Skeleton';
 
 const MapComponent = dynamic(() => import('./MapComponent'), { ssr: false });
 
-export default function TrackBusPage({ params }: { params: { busId: string } }) {
+export default function TrackBusPage({ params }: { params: Promise<{ busId: string }> }) {
+  const resolvedParams = React.use(params);
   const [telemetry, setTelemetry] = useState<any>({
     latitude: 26.2912,
     longitude: 73.0156,
@@ -30,11 +31,11 @@ export default function TrackBusPage({ params }: { params: { busId: string } }) 
 
     socket.on('connect', () => {
       setConnectionStatus('connected');
-      socket.emit('subscribe_bus', params.busId);
+      socket.emit('subscribe_bus', resolvedParams.busId);
     });
 
     socket.on('bus:location_updated', (data: any) => {
-      if (data && data.bus_id === params.busId) {
+      if (data && data.bus_id === resolvedParams.busId) {
         setTelemetry({
           latitude: data.latitude,
           longitude: data.longitude,
@@ -53,13 +54,13 @@ export default function TrackBusPage({ params }: { params: { busId: string } }) 
     });
 
     return () => {};
-  }, [params.busId]);
+  }, [resolvedParams.busId]);
 
   const loadRouteDetails = async () => {
     try {
       const busRes = await apiGet('/transit/buses');
       if (busRes.success && busRes.buses) {
-        const activeBus = busRes.buses.find((b: any) => b.id === params.busId);
+        const activeBus = busRes.buses.find((b: any) => b.id === resolvedParams.busId);
         if (activeBus?.route_id) {
           const routeRes = await apiGet(`/transit/routes/${activeBus.route_id}`);
           if (routeRes.success && routeRes.route?.stops) {

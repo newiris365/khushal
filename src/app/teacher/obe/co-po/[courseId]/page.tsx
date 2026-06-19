@@ -24,8 +24,9 @@ interface Mapping {
   correlation_level: number;
 }
 
-export default function CoPoMatrix({ params }: { params: { courseId: string } }) {
-  const { courseId } = params;
+export default function CoPoMatrix({ params }: { params: Promise<{ courseId: string }> }) {
+  const resolvedParams = React.use(params);
+  const { courseId } = resolvedParams;
 
   const [courseName, setCourseName] = useState('Advanced Web Applications');
   const [pos, setPos] = useState<PO[]>([]);

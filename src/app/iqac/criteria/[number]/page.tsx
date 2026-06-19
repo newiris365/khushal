@@ -14,8 +14,9 @@ interface Metric {
   notes: string;
 }
 
-export default function IqacCriterionDetails({ params }: { params: { number: string } }) {
-  const criterionNumber = parseInt(params.number) || 1;
+export default function IqacCriterionDetails({ params }: { params: Promise<{ number: string }> }) {
+  const resolvedParams = React.use(params);
+  const criterionNumber = parseInt(resolvedParams.number) || 1;
 
   const [metrics, setMetrics] = useState<Metric[]>([]);
   const [loading, setLoading] = useState(true);

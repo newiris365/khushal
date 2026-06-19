@@ -25,8 +25,9 @@ interface CO {
   co_statement: string;
 }
 
-export default function CIEMarksEntry({ params }: { params: { courseId: string } }) {
-  const { courseId } = params;
+export default function CIEMarksEntry({ params }: { params: Promise<{ courseId: string }> }) {
+  const resolvedParams = React.use(params);
+  const { courseId } = resolvedParams;
 
   const [courseName, setCourseName] = useState('Advanced Web Applications');
   const [cos, setCos] = useState<CO[]>([]);

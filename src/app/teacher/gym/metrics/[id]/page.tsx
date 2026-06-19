@@ -5,8 +5,9 @@ import { Activity, ShieldAlert, Sparkles, ArrowLeft, Save } from 'lucide-react';
 import { apiGet, apiPost } from '../../../../../lib/api';
 import Link from 'next/link';
 
-export default function TrainerEnterMetrics({ params }: { params: { id: string } }) {
-  const studentId = params.id;
+export default function TrainerEnterMetrics({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = React.use(params);
+  const studentId = resolvedParams.id;
   const [student, setStudent] = useState<any>(null);
   const [weight, setWeight] = useState('');
   const [height, setHeight] = useState('');

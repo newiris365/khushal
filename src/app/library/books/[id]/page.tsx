@@ -5,7 +5,8 @@ import { ArrowLeft, Book, Sparkles, CheckCircle, Clock, Send, AlertTriangle } fr
 import { apiGet, apiPost } from '../../../../lib/api';
 import Link from 'next/link';
 
-export default function BookDetailPage({ params }: { params: { id: string } }) {
+export default function BookDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const resolvedParams = React.use(params);
   const [book, setBook] = useState<any>(null);
   const [activeIssues, setActiveIssues] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -19,7 +20,7 @@ export default function BookDetailPage({ params }: { params: { id: string } }) {
 
   const loadBookDetails = async () => {
     try {
-      const res = await apiGet(`/library/books/${params.id}`);
+      const res = await apiGet(`/library/books/${resolvedParams.id}`);
       if (res.success) {
         setBook(res.book);
         setActiveIssues(res.active_issues || []);
@@ -29,7 +30,7 @@ export default function BookDetailPage({ params }: { params: { id: string } }) {
     } catch {
       // Mock Fallbacks
       setBook({
-        id: params.id,
+        id: resolvedParams.id,
         isbn: '978-0262033848',
         title: 'Introduction to Algorithms',
         author: 'Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest',

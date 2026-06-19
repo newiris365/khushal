@@ -15,8 +15,9 @@ interface AttainmentStats {
   co_scores: { co: string; score: number; target: number; attained: boolean }[];
 }
 
-export default function CoAttainmentDashboard({ params }: { params: { courseId: string } }) {
-  const { courseId } = params;
+export default function CoAttainmentDashboard({ params }: { params: Promise<{ courseId: string }> }) {
+  const resolvedParams = React.use(params);
+  const { courseId } = resolvedParams;
 
   const [courseName, setCourseName] = useState('Advanced Web Applications');
   const [stats, setStats] = useState<AttainmentStats | null>(null);
