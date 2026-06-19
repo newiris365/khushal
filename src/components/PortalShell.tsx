@@ -224,11 +224,11 @@ export default function PortalShell({
 
         {/* User info at bottom */}
         {profile && (
-          <div className="p-4 border-t border-white/5">
+          <div className="p-4 border-t border-white/5 flex items-center justify-between">
             <Link
               href="/profile"
               onClick={() => setSidebarOpen(false)}
-              className="flex items-center gap-3 p-2 -m-2 rounded-xl hover:bg-white/5 transition-all group"
+              className="flex items-center gap-3 p-2 -m-2 rounded-xl hover:bg-white/5 transition-all group flex-1 min-w-0"
             >
               <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#6C2BD9]/40 to-[#8B5CF6]/30 flex items-center justify-center text-[10px] font-extrabold text-white border border-[#6C2BD9]/20">
                 {profile.name?.charAt(0) || 'U'}
@@ -237,14 +237,14 @@ export default function PortalShell({
                 <p className="text-xs font-semibold text-white truncate group-hover:text-[#A78BFA] transition-colors">{profile.name}</p>
                 <p className="text-[9px] text-[#C4B5FD]/40 truncate">{profile.email}</p>
               </div>
-              <button
-                onClick={(e) => { e.stopPropagation(); handleSignOut(); }}
-                className="p-1.5 rounded-lg hover:bg-red-500/10 text-[#C4B5FD]/30 hover:text-red-400 transition-all"
-                title="Sign Out"
-              >
-                <LogOut className="w-3.5 h-3.5" />
-              </button>
             </Link>
+            <button
+              onClick={(e) => { e.stopPropagation(); handleSignOut(); }}
+              className="p-1.5 rounded-lg hover:bg-red-500/10 text-[#C4B5FD]/30 hover:text-red-400 transition-all ml-2"
+              title="Sign Out"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+            </button>
           </div>
         )}
       </aside>
