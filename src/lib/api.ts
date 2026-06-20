@@ -55,6 +55,7 @@ export async function apiGet<T = any>(endpoint: string, params?: Record<string, 
 
     if (!response.ok) {
       handleAuthError(response.status);
+      throw new Error(`Request failed: ${response.status}`);
     }
 
     return await response.json();
@@ -74,6 +75,7 @@ export async function apiPost<T = any>(endpoint: string, body: any): Promise<Api
 
     if (!response.ok) {
       handleAuthError(response.status);
+      throw new Error(`Request failed: ${response.status}`);
     }
 
     return await response.json();
@@ -93,6 +95,7 @@ export async function apiPut<T = any>(endpoint: string, body: any): Promise<ApiR
 
     if (!response.ok) {
       handleAuthError(response.status);
+      throw new Error(`Request failed: ${response.status}`);
     }
 
     return await response.json();
@@ -111,6 +114,7 @@ export async function apiDelete<T = any>(endpoint: string): Promise<ApiResponse<
 
     if (!response.ok) {
       handleAuthError(response.status);
+      throw new Error(`Request failed: ${response.status}`);
     }
 
     return await response.json();
@@ -202,6 +206,10 @@ async function settingsApi(action: string, queryParams?: Record<string, string>,
       headers,
       body: body ? JSON.stringify(body) : undefined,
     });
+
+    if (!response.ok) {
+      throw new Error(`Settings request failed: ${response.status}`);
+    }
 
     return await response.json();
   } catch (err: any) {

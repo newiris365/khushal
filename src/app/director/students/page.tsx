@@ -86,7 +86,7 @@ export default function StudentLookupPage() {
       setFilteredList(fallbackList);
 
       const urlParams = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : null;
-      const queryId = urlParams ? urlParams.get('id') : 's1';
+      const queryId = (urlParams ? urlParams.get('id') : 's1') || 's1';
       setSelectedStudentId(queryId);
       loadStudentProfile(queryId);
     } finally {

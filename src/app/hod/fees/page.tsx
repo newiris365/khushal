@@ -30,15 +30,15 @@ const feeCollectionSummary = {
 };
 
 export default function FeeDefaultersPage() {
-  const [defaulters, setDefaulters] = useState([]);
+  const [defaulters, setDefaulters] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterAmountMin, setFilterAmountMin] = useState('');
   const [filterAmountMax, setFilterAmountMax] = useState('');
   const [filterSemester, setFilterSemester] = useState('all');
   const [filterDaysOverdue, setFilterDaysOverdue] = useState('');
   const [showFilters, setShowFilters] = useState(false);
-  const [sendingReminder, setSendingReminder] = useState(null);
-  const [summary, setSummary] = useState(null);
+  const [sendingReminder, setSendingReminder] = useState<any>(null);
+  const [summary, setSummary] = useState<any>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [sortConfig, setSortConfig] = useState({ key: 'daysOverdue', direction: 'desc' });
 
@@ -79,16 +79,16 @@ export default function FeeDefaultersPage() {
     return 0;
   });
 
-  const handleSort = (key) => {
+  const handleSort = (key: string) => {
     setSortConfig((prev) => ({
       key,
       direction: prev.key === key && prev.direction === 'desc' ? 'asc' : 'desc',
     }));
   };
 
-  const totalPending = defaulters.reduce((sum, d) => sum + d.amountDue, 0);
+  const totalPending = defaulters.reduce((sum: number, d: any) => sum + d.amountDue, 0);
 
-  const handleSendReminder = async (defaulter) => {
+  const handleSendReminder = async (defaulter: any) => {
     setSendingReminder(defaulter.id);
     try {
       await apiPost('/campusCore/fees/send-reminder', { studentId: defaulter.id });
@@ -122,7 +122,7 @@ export default function FeeDefaultersPage() {
     URL.revokeObjectURL(url);
   };
 
-  const escalationColor = (status) => {
+  const escalationColor = (status: string) => {
     switch (status) {
       case 'hod_notified': return 'text-red-400 bg-red-400/10 border-red-400/30';
       case 'whatsapp_sent': return 'text-amber-400 bg-amber-400/10 border-amber-400/30';
@@ -131,7 +131,7 @@ export default function FeeDefaultersPage() {
     }
   };
 
-  const escalationLabel = (status) => {
+  const escalationLabel = (status: string) => {
     switch (status) {
       case 'hod_notified': return 'HOD Notified';
       case 'whatsapp_sent': return 'WhatsApp Sent';
@@ -140,17 +140,17 @@ export default function FeeDefaultersPage() {
     }
   };
 
-  const contactColor = (status) => {
+  const contactColor = (status: string) => {
     return status === 'reachable' ? 'text-emerald-400' : 'text-red-400';
   };
 
-  const daysOverdueColor = (days) => {
+  const daysOverdueColor = (days: number) => {
     if (days >= 60) return 'text-red-400';
     if (days >= 30) return 'text-amber-400';
     return 'text-emerald-400';
   };
 
-  const SortIcon = ({ col }) => {
+  const SortIcon = ({ col }: { col: string }) => {
     if (sortConfig.key !== col) return <ChevronDown className="w-3 h-3 text-gray-500" />;
     return (
       <ChevronDown
@@ -252,7 +252,7 @@ export default function FeeDefaultersPage() {
               </div>
             </div>
             <div className="flex items-end gap-3 h-40">
-              {summary.monthsData.map((m, i) => (
+              {summary.monthsData.map((m: any, i: number) => (
                 <div key={i} className="flex-1 flex flex-col items-center gap-1">
                   <span className="text-[10px] text-gray-500">₹{(m.collected / 1000).toFixed(0)}K</span>
                   <div

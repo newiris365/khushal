@@ -11,44 +11,6 @@ const nextConfig = {
     formats: ['image/avif', 'image/webp'],
   },
 
-  // Exclude server-side code from Next.js compilation entirely
-  // This prevents Next.js from scanning Express controllers/routes/services
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      // Don't resolve server-only modules on the client side
-      config.resolve.fallback = {
-        ...config.resolve.fallback,
-        fs: false,
-        net: false,
-        tls: false,
-        child_process: false,
-        'node-cron': false,
-        serialport: false,
-        pdfkit: false,
-        winston: false,
-      };
-    }
-
-    // Ignore server-side source files from Next.js bundling
-    config.watchOptions = {
-      ...config.watchOptions,
-      ignored: [
-        '**/node_modules/**',
-        '**/src/controllers/**',
-        '**/src/routes/**',
-        '**/src/middleware/**',
-        '**/src/config/**',
-        '**/src/services/**',
-        '**/src/server.ts',
-        '**/dist/**',
-        '**/logs/**',
-        '**/.next/**',
-      ],
-    };
-
-    return config;
-  },
-
   async rewrites() {
     // NEXT_PUBLIC_API_URL may include /api/v1 suffix — strip it to get the bare host
     const raw = process.env.NEXT_PUBLIC_API_URL || process.env.API_HOST || 'http://localhost:4000';

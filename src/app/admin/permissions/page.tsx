@@ -128,7 +128,7 @@ export default function AdminPermissionsPage() {
       const idx = prev.findIndex(p => p.role === role && p.module === module);
       if (idx >= 0) {
         const updated = [...prev];
-        updated[idx] = { ...updated[idx], [field]: value };
+        updated[idx] = { ...updated[idx]!, [field]: value };
         return updated;
       }
       return [...prev, { role, module, can_read: field === 'can_read' ? value : false, can_write: field === 'can_write' ? value : false, can_delete: field === 'can_delete' ? value : false }];

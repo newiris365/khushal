@@ -179,7 +179,7 @@ export default function TeacherLeavePage() {
         faculty_remarks: '',
         hod_remarks: '',
         admin_remarks: '',
-        created_at: new Date().toISOString().split('T')[0],
+        created_at: new Date().toISOString().split('T')[0] || '',
       };
       setLeaves(prev => [newLeave, ...prev]);
       setShowForm(false);
@@ -199,7 +199,7 @@ export default function TeacherLeavePage() {
       const start = new Date(leave.from_date);
       const end = new Date(leave.to_date);
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        approvedDates.add(d.toISOString().split('T')[0]);
+        approvedDates.add(d.toISOString().split('T')[0] || '');
       }
     }
   });
@@ -450,7 +450,11 @@ export default function TeacherLeavePage() {
             ) : (
               filteredLeaves.map(leave => {
                 const lt = LEAVE_TYPES.find(l => l.value === leave.leave_type);
-                const status = STATUS_MAP[leave.status] || STATUS_MAP.pending;
+                const status = STATUS_MAP[leave.status] || {
+                  label: 'Pending',
+                  color: 'text-yellow-400 bg-yellow-500/20 border-yellow-500/30',
+                  icon: <Clock className="w-3 h-3" />
+                };
                 return (
                   <div
                     key={leave.id}

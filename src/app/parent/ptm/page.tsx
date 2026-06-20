@@ -35,7 +35,7 @@ export default function ParentPTMPage() {
   ]);
   const [selectedTeacherId, setSelectedTeacherId] = useState<string>('t-1');
   const [selectedDate, setSelectedDate] = useState<string>(
-    new Date(Date.now() + 24 * 3600 * 1000).toISOString().split('T')[0] // tomorrow default
+    new Date(Date.now() + 24 * 3600 * 1000).toISOString().split('T')[0] || '' // tomorrow default
   );
   const [slots, setSlots] = useState<Slot[]>([]);
   const [selectedSlotId, setSelectedSlotId] = useState<string | null>(null);
@@ -148,7 +148,7 @@ export default function ParentPTMPage() {
                 setSelectedDate(e.target.value);
                 setBooking(null);
               }}
-              min={new Date().toISOString().split('T')[0]}
+              min={new Date().toISOString().split('T')[0] || ''}
               className="w-full bg-[#0D0A1A]/85 border border-[#6C2BD9]/30 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-[#8B5CF6] text-white"
             />
           </div>

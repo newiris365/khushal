@@ -103,6 +103,7 @@ export default function DocumentCenterPage() {
     if (!files || files.length === 0) return;
     
     const file = files[0];
+    if (!file) return;
     setUploadingDoc(docType);
     setUploadProgress(10);
 

@@ -60,7 +60,7 @@ export default function CoPoMatrix({ params }: { params: Promise<{ courseId: str
           'Communication',
           'Project Management and Finance',
           'Life-long Learning'
-        ][i],
+        ][i] || '',
         description: ''
       }));
       setPos(demoPOs);
@@ -79,20 +79,21 @@ export default function CoPoMatrix({ params }: { params: Promise<{ courseId: str
       // Setup initial empty or mock mappings grid
       const initialMap: Record<string, Record<string, number>> = {};
       demoCOs.forEach(co => {
-        initialMap[co.id] = {};
+        const coMap: Record<string, number> = {};
         demoPOs.forEach(po => {
           // Initialize some random correlations for a seeded experience
           const mappingKey = `${co.co_number}-${po.po_code}`;
           if (['1-PO1', '1-PO2', '2-PO1', '2-PO2', '3-PO3', '3-PO5', '4-PO4', '5-PO12', '6-PO3', '6-PO11'].includes(mappingKey)) {
-            initialMap[co.id][po.id] = 3;
+            coMap[po.id] = 3;
           } else if (['1-PO3', '2-PO3', '3-PO4', '4-PO2', '5-PO9', '6-PO5'].includes(mappingKey)) {
-            initialMap[co.id][po.id] = 2;
+            coMap[po.id] = 2;
           } else if (['1-PO12', '2-PO5', '3-PO10', '5-PO10'].includes(mappingKey)) {
-            initialMap[co.id][po.id] = 1;
+            coMap[po.id] = 1;
           } else {
-            initialMap[co.id][po.id] = 0; // Unmapped
+            coMap[po.id] = 0; // Unmapped
           }
         });
+        initialMap[co.id] = coMap;
       });
       setMappings(initialMap);
 
@@ -127,9 +128,11 @@ export default function CoPoMatrix({ params }: { params: Promise<{ courseId: str
       // Send changes to server
       const promises: any[] = [];
       Object.keys(mappings).forEach(coId => {
-        Object.keys(mappings[coId]).forEach(poId => {
-          const val = mappings[coId][poId];
-          if (val > 0) {
+        const coMap = mappings[coId];
+        if (!coMap) return;
+        Object.keys(coMap).forEach(poId => {
+          const val = coMap[poId];
+          if (val !== undefined && val > 0) {
             promises.push(
               fetch('/api/obe/co-po-mapping', {
                 method: 'POST',
@@ -162,7 +165,7 @@ export default function CoPoMatrix({ params }: { params: Promise<{ courseId: str
     pos.forEach(po => {
       let isMapped = false;
       cos.forEach(co => {
-        if (mappings[co.id]?.[po.id] > 0) {
+        if ((mappings[co.id]?.[po.id] ?? 0) > 0) {
           isMapped = true;
         }
       });

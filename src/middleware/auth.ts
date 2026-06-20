@@ -14,6 +14,9 @@ export interface AuthenticatedUser {
   institution_id: string;
   role: string;
   email: string;
+  name?: string;
+  phone?: string;
+  student_id?: string;
   fingerprint?: string;
 }
 
@@ -58,6 +61,7 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
       try {
         const parts = token.split('.');
         const payloadBase64 = parts[1];
+        if (!payloadBase64) throw new Error('Invalid token format');
         const payloadJson = Buffer.from(payloadBase64, 'base64').toString('utf-8');
         const decoded = JSON.parse(payloadJson) as AuthenticatedUser;
         req.user = decoded;
@@ -70,8 +74,8 @@ export function authMiddleware(req: Request, res: Response, next: NextFunction) 
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as AuthenticatedUser;
       
-      // Verify device fingerprint claim if present
-      if (decoded.fingerprint) {
+      // Verify device fingerprint claim if present (bypassed in development mode to prevent localhost proxy mismatch loops)
+      if (decoded.fingerprint && process.env.NODE_ENV !== 'development') {
         const currentFingerprint = getFingerprintHash(req);
         if (decoded.fingerprint !== currentFingerprint) {
           return res.status(403).json({ 

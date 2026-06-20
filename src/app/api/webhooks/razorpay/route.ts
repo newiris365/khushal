@@ -6,7 +6,10 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseKey);
 
-const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET || 'super-secret-razorpay-webhook';
+const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
+if (!webhookSecret) {
+  console.error('CRITICAL: RAZORPAY_WEBHOOK_SECRET not configured. Webhook signature verification will fail.');
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -15,6 +18,10 @@ export async function POST(req: NextRequest) {
 
     if (!signature) {
       return NextResponse.json({ success: false, error: 'Missing signature' }, { status: 400 });
+    }
+
+    if (!webhookSecret) {
+      return NextResponse.json({ success: false, error: 'Server misconfiguration: webhook secret not set' }, { status: 500 });
     }
 
     // Verify webhook signature

@@ -70,7 +70,7 @@ export default function CIEMarksEntry({ params }: { params: Promise<{ courseId: 
         { id: 'tool-3', name: 'Assignment - Supabase migration schema', tool_type: 'assignment', max_marks: 20, weightage: 10 }
       ];
       setTools(demoTools);
-      setSelectedTool(demoTools[0].id);
+      setSelectedTool(demoTools[0]?.id || '');
 
       // Mock Students
       const demoStudents: StudentRow[] = [
@@ -144,7 +144,7 @@ export default function CIEMarksEntry({ params }: { params: Promise<{ courseId: 
     input.type = 'file';
     input.accept = '.csv';
     input.onchange = async (e: any) => {
-      const file = e.target.files[0];
+      const file = e.target.files?.[0];
       if (file) {
         setLoading(true);
         // Simulate reading

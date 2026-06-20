@@ -89,9 +89,12 @@ export default function PortalShell({
 
         const disabled = new Set<string>();
         for (const f of data.features) {
-          if (!f.enabled && FEATURE_TO_LINK_MAP[f.feature_key]) {
-            for (const href of FEATURE_TO_LINK_MAP[f.feature_key]) {
-              disabled.add(href);
+          if (!f.enabled) {
+            const mappedHrefs = FEATURE_TO_LINK_MAP[f.feature_key];
+            if (mappedHrefs) {
+              for (const href of mappedHrefs) {
+                disabled.add(href);
+              }
             }
           }
         }

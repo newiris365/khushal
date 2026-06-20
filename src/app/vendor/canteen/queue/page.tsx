@@ -90,7 +90,7 @@ export default function VendorQueuePage() {
       token_number: Math.floor(100 + Math.random() * 900),
       status: 'Received',
       total_amount: 90,
-      items: [{ item_name: dishes[Math.floor(Math.random() * dishes.length)], qty: 1 }],
+      items: [{ item_name: dishes[Math.floor(Math.random() * dishes.length)] || 'Samosa (2pc)', qty: 1 }],
       created_at: new Date().toISOString()
     };
 

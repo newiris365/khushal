@@ -86,15 +86,21 @@ export default function VendorMenuPage() {
 
       lines.forEach((line, i) => {
         const parts = line.split(',');
-        if (parts.length >= 4) {
+        const p0 = parts[0];
+        const p1 = parts[1];
+        const p2 = parts[2];
+        const p3 = parts[3];
+        const p4 = parts[4];
+        const p5 = parts[5];
+        if (p0 !== undefined && p1 !== undefined && p2 !== undefined && p3 !== undefined) {
           parsedDishes.push({
             id: `csv-${Date.now()}-${i}`,
-            item_name: parts[0].trim(),
-            category: parts[1].trim(),
-            price: Number(parts[2]) || 50,
-            is_veg: parts[3].trim().toLowerCase() === 'true',
-            calories: Number(parts[4]) || 200,
-            prep_time_mins: Number(parts[5]) || 8,
+            item_name: p0.trim(),
+            category: p1.trim(),
+            price: Number(p2) || 50,
+            is_veg: p3.trim().toLowerCase() === 'true',
+            calories: Number(p4 || '') || 200,
+            prep_time_mins: Number(p5 || '') || 8,
             is_available: true
           });
         }

@@ -31,8 +31,11 @@ export default function WardenHostelDashboard() {
       }
       if (blocksRes.success && blocksRes.blocks?.length > 0) {
         setBlocks(blocksRes.blocks);
-        setSelectedBlock(blocksRes.blocks[0]);
-        loadRoomsForBlock(blocksRes.blocks[0].id);
+        const firstBlock = blocksRes.blocks[0];
+        if (firstBlock) {
+          setSelectedBlock(firstBlock);
+          loadRoomsForBlock(firstBlock.id);
+        }
       } else {
         throw new Error('No blocks returned');
       }
@@ -60,8 +63,11 @@ export default function WardenHostelDashboard() {
         { id: 'b3', name: 'Kalpana Staff Quarters', type: 'staff', total_rooms: 30, total_floors: 2 }
       ];
       setBlocks(mockBlocks);
-      setSelectedBlock(mockBlocks[0]);
-      loadRoomsMock(mockBlocks[0].id);
+      const firstMockBlock = mockBlocks[0];
+      if (firstMockBlock) {
+        setSelectedBlock(firstMockBlock);
+        loadRoomsMock(firstMockBlock.id);
+      }
     } finally {
       setLoading(false);
     }

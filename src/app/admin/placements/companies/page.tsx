@@ -244,7 +244,7 @@ export default function CompanyAnalytics() {
               <h3 className="text-lg font-semibold text-white mb-4">Company Tier Breakdown</h3>
               <ResponsiveContainer width="100%" height={250}>
                 <PieChart>
-                  <Pie data={tierData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  <Pie data={tierData} cx="50%" cy="50%" innerRadius={50} outerRadius={85} dataKey="value" label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}>
                     {tierData.map((_, index) => (
                       <Cell key={index} fill={pieColors[index]} />
                     ))}

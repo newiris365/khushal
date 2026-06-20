@@ -172,7 +172,7 @@ function generateAttendanceData(): AttendanceRecord[] {
   };
 
   // Generate for Sem 3: Jan 15 - Apr 20, 2024
-  const sem3Subjects = SEMESTERS[2].subjects;
+  const sem3Subjects = SEMESTERS[2]?.subjects || [];
   const sem3Start = new Date('2024-01-15');
   const sem3End = new Date('2024-04-20');
 
@@ -186,16 +186,16 @@ function generateAttendanceData(): AttendanceRecord[] {
     selectedDates.forEach((date, idx) => {
       records.push({
         date: formatDate(date),
-        day: days[date.getDay() === 0 ? 6 : date.getDay() - 1],
+        day: days[date.getDay() === 0 ? 6 : date.getDay() - 1] || 'Monday',
         lectureType: subject.lectureType,
-        status: attendancePattern[idx],
+        status: attendancePattern[idx] || 'P',
         subjectCode: subject.code,
       });
     });
   });
 
   // Generate for Sem 4: Jan 15 - May 10, 2024
-  const sem4Subjects = SEMESTERS[3].subjects;
+  const sem4Subjects = SEMESTERS[3]?.subjects || [];
   const sem4Start = new Date('2024-01-15');
   const sem4End = new Date('2024-05-10');
 
@@ -209,9 +209,9 @@ function generateAttendanceData(): AttendanceRecord[] {
     selectedDates.forEach((date, idx) => {
       records.push({
         date: formatDate(date),
-        day: days[date.getDay() === 0 ? 6 : date.getDay() - 1],
+        day: days[date.getDay() === 0 ? 6 : date.getDay() - 1] || 'Monday',
         lectureType: subject.lectureType,
-        status: attendancePattern[idx],
+        status: attendancePattern[idx] || 'P',
         subjectCode: subject.code,
       });
     });
@@ -224,7 +224,7 @@ function generateClassDates(start: Date, end: Date, days: string[]): Date[] {
   const dates: Date[] = [];
   const current = new Date(start);
   while (current <= end) {
-    const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][current.getDay()];
+    const dayName = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'][current.getDay()] || 'Sunday';
     if (days.includes(dayName)) {
       dates.push(new Date(current));
     }
@@ -236,9 +236,11 @@ function generateClassDates(start: Date, end: Date, days: string[]): Date[] {
 function selectDatesFromClassPool(allDates: Date[], classesPerWeek: number, weeks: number): Date[] {
   const selected: Date[] = [];
   const weekGroups: Map<number, Date[]> = new Map();
+  const firstDate = allDates[0];
+  if (!firstDate) return [];
 
   allDates.forEach(date => {
-    const weekNum = Math.floor((date.getTime() - allDates[0].getTime()) / (7 * 24 * 60 * 60 * 1000));
+    const weekNum = Math.floor((date.getTime() - firstDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
     if (!weekGroups.has(weekNum)) weekGroups.set(weekNum, []);
     weekGroups.get(weekNum)!.push(date);
   });
@@ -282,14 +284,19 @@ function generateAttendancePattern(totalClasses: number, targetPct: number): Att
   // Shuffle to make it look natural
   for (let i = pattern.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
-    [pattern[i], pattern[j]] = [pattern[j], pattern[i]];
+    const tempI = pattern[i];
+    const tempJ = pattern[j];
+    if (tempI !== undefined && tempJ !== undefined) {
+      pattern[i] = tempJ;
+      pattern[j] = tempI;
+    }
   }
 
   return pattern;
 }
 
 function formatDate(date: Date): string {
-  return date.toISOString().split('T')[0];
+  return date.toISOString().split('T')[0] || '';
 }
 
 function getMonthKey(dateStr: string): string {
@@ -299,7 +306,7 @@ function getMonthKey(dateStr: string): string {
 
 function getMonthLabel(monthKey: string): string {
   const [year, month] = monthKey.split('-');
-  const date = new Date(parseInt(year), parseInt(month) - 1);
+  const date = new Date(parseInt(year || '0'), parseInt(month || '1') - 1);
   return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 }
 
@@ -384,7 +391,7 @@ export default function StudentAttendancePage() {
     const sem = SEMESTERS.find(s => s.number === semNumber);
     if (sem && !sem.isLocked) {
       setSelectedSem(semNumber);
-      setSelectedSubject(sem.subjects[0].code);
+      setSelectedSubject(sem.subjects[0]?.code || '');
       setSelectedMonth('all');
       setExpandedMonths(new Set());
     }
@@ -663,7 +670,7 @@ export default function StudentAttendancePage() {
                 </div>
               ) : (
                 filteredMonthKeys.map(monthKey => {
-                  const monthRecords = monthGroups[monthKey];
+                  const monthRecords = monthGroups[monthKey] || [];
                   const monthSummary = calculateSummary(monthRecords);
                   const isExpanded = expandedMonths.has(monthKey);
 

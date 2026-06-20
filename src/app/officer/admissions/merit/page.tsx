@@ -54,7 +54,7 @@ export default function OfficerMeritPage() {
       if (res.success && res.applicants) {
         setApplicantsList(res.applicants);
         if (res.applicants.length > 0) {
-          setAiApplicantId(res.applicants[0].id);
+          setAiApplicantId(res.applicants[0]?.id || '');
         }
       }
     } catch {
@@ -64,7 +64,7 @@ export default function OfficerMeritPage() {
         { id: 'b0000000-0000-0000-0000-000000009991', first_name: 'Priyanka', last_name: 'Sharma', status: 'verified' }
       ];
       setApplicantsList(mockList);
-      setAiApplicantId(mockList[0].id);
+      setAiApplicantId(mockList[0]?.id || '');
     }
   }
 
@@ -164,7 +164,7 @@ export default function OfficerMeritPage() {
       const res = await apiPut(`/admissions/merit-lists/${currentMeritList.id}/publish`, {});
       if (res.success) {
         setSuccess(`Merit list published successfully! Notifications sent to candidates.`);
-        setCurrentMeritList(prev => prev ? { ...prev, is_published: true } : null);
+        setCurrentMeritList((prev: any) => prev ? { ...prev, is_published: true } : null);
       } else {
         throw new Error(res.error);
       }
@@ -172,7 +172,7 @@ export default function OfficerMeritPage() {
       // Offline fallback
       setTimeout(() => {
         setSuccess('Merit list published locally. Broadcasters broadcasted to message queues.');
-        setCurrentMeritList(prev => prev ? { ...prev, is_published: true } : null);
+        setCurrentMeritList((prev: any) => prev ? { ...prev, is_published: true } : null);
         setLoading(false);
       }, 1000);
     }

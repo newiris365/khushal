@@ -110,7 +110,7 @@ export default function TeacherStudyMaterialsPage() {
         file_size_kb: Math.round((uploadForm.file?.size || 0) / 1024),
         download_count: 0,
         uploaded_by_name: 'You',
-        created_at: new Date().toISOString().split('T')[0],
+        created_at: new Date().toISOString().split('T')[0] || '',
       };
       setMaterials(prev => [newMaterial, ...prev]);
       setShowUploadModal(false);

@@ -183,7 +183,7 @@ export default function SecurityRestrictionsPage() {
       ) : (
         <div className="space-y-3">
           {filtered.map(r => {
-            const typeInfo = RESTRICTION_TYPES.find(t => t.value === r.restriction_type) || RESTRICTION_TYPES[5];
+            const typeInfo = RESTRICTION_TYPES.find(t => t.value === r.restriction_type) || { value: 'other', label: 'Other', color: 'bg-slate-500/20 text-slate-400' };
             return (
               <div key={r.id} className="bg-white/5 backdrop-blur-sm rounded-xl border border-white/10 p-4">
                 <div className="flex items-center justify-between">

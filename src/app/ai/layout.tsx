@@ -127,7 +127,7 @@ export default function AiLayout({ children }: { children: React.ReactNode }) {
     if (savedProfile) {
       try {
         setProfile(JSON.parse(savedProfile));
-      } catch (err) {}
+      } catch (err) { console.error('Failed to parse user profile:', err); }
     }
     setLoading(false);
   }, []);

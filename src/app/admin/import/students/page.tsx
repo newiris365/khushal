@@ -76,11 +76,13 @@ export default function StudentImportPage() {
   const mappedData = rawData.map((row) => {
     const mapped: Record<string, any> = {};
     REQUIRED_COLUMNS.forEach(req => {
-      mapped[req] = row[columnMapping[req]] || '';
+      const colKey = columnMapping[req];
+      mapped[req] = (colKey && row[colKey]) || '';
     });
     OPTIONAL_COLUMNS.forEach(opt => {
-      if (columnMapping[opt]) {
-        mapped[opt] = row[columnMapping[opt]] || undefined;
+      const colKey = columnMapping[opt];
+      if (colKey) {
+        mapped[opt] = row[colKey] || undefined;
       }
     });
     return mapped;
@@ -262,7 +264,7 @@ export default function StudentImportPage() {
                     <label className="w-28 text-sm text-gray-400 font-medium">{opt.replace(/_/g, ' ')}:</label>
                     <select
                       value={columnMapping[opt] || ''}
-                      onChange={(e) => setColumnMapping(prev => ({ ...prev, [opt]: e.target.value || undefined }))}
+                      onChange={(e) => setColumnMapping(prev => ({ ...prev, [opt]: e.target.value }))}
                       className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-violet-500/50 focus:outline-none"
                     >
                       <option value="">-- Not mapped --</option>

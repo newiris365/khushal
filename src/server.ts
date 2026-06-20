@@ -31,6 +31,10 @@ import permissionsRouter from './routes/permissions';
 import grievancesRouter from './routes/grievances';
 import attendanceEngineRouter from './services/attendanceEngine/routes';
 import { initGateHardware } from './services/gateHardware';
+import {
+  setTransitNs, setNotificationsNs, setCanteenNs,
+  setGateNs, setDirectorNs, setEventsNs
+} from './config/socketNamespaces';
 
 dotenv.config();
 
@@ -51,7 +55,7 @@ const httpServer = http.createServer(app);
 // Socket.io realtime gateway
 const io = new SocketServer(httpServer, {
   cors: {
-    origin: '*',
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
     methods: ['GET', 'POST']
   }
 });
@@ -208,13 +212,21 @@ setInterval(async () => {
 // Export io for use in controllers (e.g. transit GPS broadcast)
 export { io, transitNs, notificationsNs, canteenNs, gateNs, directorNs, eventsNs };
 
+// Populate shared namespace references for controllers
+setTransitNs(transitNs);
+setNotificationsNs(notificationsNs);
+setCanteenNs(canteenNs);
+setGateNs(gateNs);
+setDirectorNs(directorNs);
+setEventsNs(eventsNs);
+
 // Trust upstream proxy (Nginx, AWS, Cloudflare, etc.) to correctly resolve req.ip
 app.set('trust proxy', 1);
 
 // Security and CORS middleware configuration
 app.use(helmet());
 app.use(cors({
-  origin: '*', // Whitelisted domains should be configured here in production
+  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Client-Device-ID']
 }));

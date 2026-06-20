@@ -99,6 +99,7 @@ export default function AdminKitchenDisplay() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map(order => {
             const config = STATUS_CONFIG[order.status] || STATUS_CONFIG.placed;
+            if (!config) return null;
             const Icon = config.icon;
             const nextStatus = STATUS_FLOW[STATUS_FLOW.indexOf(order.status) + 1];
             return (

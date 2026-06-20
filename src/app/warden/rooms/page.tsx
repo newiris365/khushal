@@ -62,7 +62,7 @@ export default function WardenRoomsPage() {
         deposit_action: 'refunded',
       });
       if (res.success) {
-        setAllocations(allocations.map(a => a.id === allocationId ? { ...a, is_current: false, vacated_date: new Date().toISOString().split('T')[0] } : a));
+        setAllocations(allocations.map(a => a.id === allocationId ? { ...a, is_current: false, vacated_date: new Date().toISOString().split('T')[0] || '' } : a));
         setExpandedId(null);
         setCheckoutReason('');
         fetchData();

@@ -159,7 +159,7 @@ export default function AdminPlacementStats() {
               <h3 className="text-lg font-semibold text-white mb-4">CTC Distribution</h3>
               <ResponsiveContainer width="100%" height={300}>
                 <PieChart>
-                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                  <Pie data={pieData} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" label={({ name, percent }: { name: string; percent: number }) => `${name} ${(percent * 100).toFixed(0)}%`}>
                     {pieData.map((_, index) => (
                       <Cell key={index} fill={segmentColors[index]} />
                     ))}

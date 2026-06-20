@@ -152,7 +152,7 @@ export default function KioskLiveDisplayPage() {
       // Mock triggers for preview demonstration in dev
       const timer = setInterval(() => {
         const emojis = ['❤️', '👏', '🔥', '😮'];
-        const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
+        const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)] || '❤️';
         triggerFloatingEmoji(randomEmoji);
       }, 3000);
       return () => clearInterval(timer);

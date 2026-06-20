@@ -10,7 +10,9 @@ export default function GenericDashboard() {
   useEffect(() => {
     const savedProfile = localStorage.getItem('iris_user_profile');
     if (savedProfile) {
-      setProfile(JSON.parse(savedProfile));
+      try {
+        setProfile(JSON.parse(savedProfile));
+      } catch { /* invalid JSON */ }
     }
   }, []);
 
@@ -54,7 +56,7 @@ export default function GenericDashboard() {
     ]
   };
 
-  const links = roleLinks[profile.role] || roleLinks['Staff'];
+  const links = roleLinks[profile.role] || roleLinks['Staff'] || [];
 
   return (
     <div className="min-h-screen bg-[#0D0A1A] text-white flex flex-col">

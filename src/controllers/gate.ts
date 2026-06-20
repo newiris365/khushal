@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { supabaseAdmin } from '../config/supabase';
 import PDFDocument from 'pdfkit';
 import logger from '../config/logger';
+import { gateNs } from '../config/socketNamespaces';
 
 // ========== ZOD VALIDATION SCHEMAS ==========
 
@@ -120,7 +121,6 @@ async function updateOccupancyCounts(institution_id: string, person_type: string
 
     // Emit live Socket.io updates to "admin:gate" room
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         gateNs.to('admin:gate').emit('gate:occupancy_updated', {
           students_inside: studentsInside,
@@ -240,7 +240,6 @@ export async function entryQR(req: Request, res: Response) {
 
     // Emit websocket activities feed
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         gateNs.to('admin:gate').emit('gate:entry_logged', {
           id: entry.id,
@@ -314,7 +313,6 @@ export async function entryBiometric(req: Request, res: Response) {
     await updateOccupancyCounts(req.user?.institution_id!, person_type, targetDirection);
 
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         gateNs.to('admin:gate').emit('gate:entry_logged', {
           id: entry.id,
@@ -409,7 +407,6 @@ export async function entryRfid(req: Request, res: Response) {
     await updateOccupancyCounts(req.user?.institution_id!, card.person_type, targetDirection);
 
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         gateNs.to('admin:gate').emit('gate:entry_logged', {
           id: entry.id,
@@ -454,7 +451,6 @@ export async function entryManual(req: Request, res: Response) {
     await updateOccupancyCounts(req.user?.institution_id!, parse.data.person_type, parse.data.direction);
 
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         gateNs.to('admin:gate').emit('gate:entry_logged', {
           id: data.id,
@@ -579,8 +575,7 @@ export async function createVisitor(req: Request, res: Response) {
     if (blacklisted) {
       // Alert security
       try {
-        const { gateNs } = require('../server');
-        if (gateNs) {
+      if (gateNs) {
           gateNs.to('admin:gate').emit('gate:incident_reported', {
             incident_type: 'blacklist_attempt',
             description: `Blacklisted visitor "${visitor_name}" attempted entry at main gate. Reason: ${blacklisted.reason}`,
@@ -629,7 +624,6 @@ export async function createVisitor(req: Request, res: Response) {
 
     // C. Trigger Host Notification & Approval via Socket.io
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         // Emit approval ticket to host's device room (could match user ID room)
         gateNs.to(`host_${host_id}`).emit('gate:visitor_request', {
@@ -699,7 +693,6 @@ export async function approveVisitor(req: Request, res: Response) {
     await updateOccupancyCounts(req.user?.institution_id!, 'visitor', 'in');
 
     try {
-      const { gateNs } = require('../server');
       if (gateNs && entry) {
         gateNs.to('admin:gate').emit('gate:entry_logged', {
           id: entry.id,
@@ -786,7 +779,6 @@ export async function exitVisitor(req: Request, res: Response) {
     await updateOccupancyCounts(req.user?.institution_id!, 'visitor', 'out');
 
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         gateNs.to('admin:gate').emit('gate:entry_logged', {
           id: entry.id,
@@ -988,7 +980,6 @@ export async function createIncident(req: Request, res: Response) {
     // High/Critical severity auto-escalations and FCM broadcasts
     if (parse.data.severity === 'high' || parse.data.severity === 'critical') {
       try {
-        const { gateNs } = require('../server');
         if (gateNs) {
           gateNs.to('admin:security').emit('gate:incident_reported', {
             id: data.id,
@@ -1341,7 +1332,6 @@ export async function cctvAnomalyWebhook(req: Request, res: Response) {
 
     // Broadcast CCTV threat alert to security console room
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         gateNs.to('admin:gate').emit('security:threat_alert', {
           alarm_type,
@@ -1404,7 +1394,6 @@ export async function triggerEmergencyMuster(req: Request, res: Response) {
 
     // Broadcast emergency muster notice to all connected mobile apps
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         gateNs.emit('emergency:muster_active', {
           muster_id: muster.id,
@@ -1430,7 +1419,7 @@ export async function respondToMuster(req: Request, res: Response) {
       return res.status(400).json({ success: false, error: 'Muster ID is required.' });
     }
 
-    const targetStudentId = student_id || (req.user as any)?.student_id || 'c0000000-0000-0000-0000-000000000006';
+    const targetStudentId = student_id || req.user?.student_id || 'c0000000-0000-0000-0000-000000000006';
 
     const { data, error } = await supabaseAdmin
       .from('muster_responses')
@@ -1450,7 +1439,6 @@ export async function respondToMuster(req: Request, res: Response) {
 
     // Broadcast updated safe counts to admin security room
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         gateNs.to('admin:gate').emit('emergency:muster_update', {
           student_id: targetStudentId,
@@ -1607,7 +1595,6 @@ export async function initiateIntercomCall(req: Request, res: Response) {
 
     // Pushes video call ring to student's mobile namespace
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         gateNs.to(`host_${host.id}`).emit('intercom:incoming_call', {
           call_id: call.id,
@@ -1646,7 +1633,6 @@ export async function respondToIntercomCall(req: Request, res: Response) {
 
     // Notify gate kiosk that visitor is approved/denied
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         gateNs.emit('intercom:call_resolved', {
           call_id: id,

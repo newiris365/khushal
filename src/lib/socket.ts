@@ -10,8 +10,8 @@ export function getSocket(namespace: string): Socket {
   }
 
   const socketUrl = process.env.NEXT_PUBLIC_API_URL
-    ? process.env.NEXT_PUBLIC_API_URL.replace('/api/v1', '')
-    : 'https://api.iris365.in';
+    ? process.env.NEXT_PUBLIC_API_URL.replace('/api/v1', '').replace('/api', '')
+    : window.location.origin;
 
   const token = typeof window !== 'undefined' ? localStorage.getItem('iris_jwt_token') : null;
 

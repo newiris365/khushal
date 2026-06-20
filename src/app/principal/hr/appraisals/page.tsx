@@ -132,7 +132,7 @@ export default function PrincipalAppraisals() {
       finalized: { label: 'Finalized', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-400' },
       self_submitted: { label: 'Self-Submitted', bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400' }
     };
-    const s = config[status] || config.self_submitted;
+    const s = config[status] || { label: 'Self-Submitted', bg: 'bg-blue-500/10', border: 'border-blue-500/30', text: 'text-blue-400' };
     return <span className={`text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-md ${s.bg} border ${s.border} ${s.text} font-bold`}>{s.label}</span>;
   };
 

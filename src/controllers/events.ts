@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { supabaseAdmin } from '../config/supabase';
 import Razorpay from 'razorpay';
 import crypto from 'crypto';
+import { eventsNs } from '../config/socketNamespaces';
 
 // ============================================================
 // ZOD SCHEMAS
@@ -1127,12 +1128,7 @@ const generateCertificatesSchema = z.object({
 // ============================================================
 
 function getEventsNs() {
-  try {
-    const server = require('../server');
-    return server.eventsNs;
-  } catch (err) {
-    return null;
-  }
+  return eventsNs;
 }
 
 async function callClaude(prompt: string, maxTokens = 1500): Promise<string | null> {

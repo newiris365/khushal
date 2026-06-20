@@ -66,7 +66,7 @@ export default function AdminAiMenuPage() {
     try {
       // Simulate/Trigger API approval
       await apiPut('/canteen/ai-menu/approve', { plan: menuPlan });
-    } catch (err) {}
+    } catch (err) { console.error('Failed to approve AI menu:', err); }
 
     setPublishing(false);
     setSuccessMsg('AI Weekly Menu approved and published successfully! 🚀');

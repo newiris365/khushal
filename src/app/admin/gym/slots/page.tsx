@@ -20,7 +20,7 @@ export default function AdminGymSlots() {
 
   useEffect(() => {
     // Set default date to today
-    setDate(new Date().toISOString().split('T')[0]);
+    setDate(new Date().toISOString().split('T')[0] || '');
     loadSlotsAndTrainers();
   }, []);
 

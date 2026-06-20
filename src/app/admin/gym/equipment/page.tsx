@@ -75,7 +75,7 @@ export default function AdminGymEquipment() {
 
   const triggerMaintenance = (equip: any) => {
     setSelectedEquip(equip);
-    setNextDue(new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]);
+    setNextDue(new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] || '');
     setShowMaintModal(true);
   };
 

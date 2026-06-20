@@ -89,6 +89,11 @@ export default function AdminDashboard() {
         fetch('/api/v1/director/modules', { headers: getAuthHeaders() })
       ]);
 
+      if (!overviewRes.ok) throw new Error(`Overview request failed: ${overviewRes.status}`);
+      if (!analyticsRes.ok) throw new Error(`Analytics request failed: ${analyticsRes.status}`);
+      if (!alertsRes.ok) throw new Error(`Alerts request failed: ${alertsRes.status}`);
+      if (!modulesRes.ok) throw new Error(`Modules request failed: ${modulesRes.status}`);
+
       const overviewData = await overviewRes.json();
       const analyticsData = await analyticsRes.json();
       const alertsData = await alertsRes.json();
@@ -129,7 +134,7 @@ export default function AdminDashboard() {
           const total = 1200 + Math.floor(Math.random() * 80);
           const present = Math.floor(total * (0.78 + Math.random() * 0.15));
           trend.push({
-            date: d.toISOString().split('T')[0],
+            date: d.toISOString().split('T')[0] || '',
             present,
             absent: total - present,
             total,
@@ -182,6 +187,7 @@ export default function AdminDashboard() {
         method: 'POST',
         headers: getAuthHeaders()
       });
+      if (!response.ok) throw new Error(`Report request failed: ${response.status}`);
       const result = await response.json();
       if (result.success) {
         alert(`Report Generated:\n\n${result.report.title}\nInstitution: ${result.report.institution}\nGenerated: ${result.report.generated_at}\n\nStudents: ${result.report.summary.total_students}\nStaff: ${result.report.summary.total_staff}\nFees Collected: ${result.report.summary.fee_collected}\nPending Complaints: ${result.report.summary.pending_complaints}`);

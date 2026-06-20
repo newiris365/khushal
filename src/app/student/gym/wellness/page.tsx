@@ -72,15 +72,20 @@ export default function StudentWellnessPage() {
     }
     // Simple count of sequential logs
     let streak = 0;
-    const todayStr = new Date().toISOString().split('T')[0];
+    const todayStr = new Date().toISOString().split('T')[0] || '';
     const uniqueDates = Array.from(new Set(logs.map(l => l.date))).sort().reverse();
+    const firstDate = uniqueDates[0];
+    const yesterdayStr = new Date(Date.now() - 86400000).toISOString().split('T')[0] || '';
     
     // Check if the most recent log is today or yesterday
-    if (uniqueDates[0] === todayStr || uniqueDates[0] === new Date(Date.now() - 86400000).toISOString().split('T')[0]) {
+    if (firstDate && (firstDate === todayStr || firstDate === yesterdayStr)) {
       streak = 1;
       for (let i = 0; i < uniqueDates.length - 1; i++) {
-        const d1 = new Date(uniqueDates[i]);
-        const d2 = new Date(uniqueDates[i + 1]);
+        const date1 = uniqueDates[i];
+        const date2 = uniqueDates[i + 1];
+        if (!date1 || !date2) continue;
+        const d1 = new Date(date1);
+        const d2 = new Date(date2);
         const diffTime = Math.abs(d1.getTime() - d2.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
         if (diffDays === 1) {

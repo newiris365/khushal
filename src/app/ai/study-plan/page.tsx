@@ -35,7 +35,7 @@ interface StudyPlan {
   generated_at: string;
 }
 
-const BLOCK_COLORS: Record<string, { bg: string; border: string; text: string }> = {
+const BLOCK_COLORS: Record<'focus' | 'review' | 'practice' | 'light', { bg: string; border: string; text: string }> = {
   focus: { bg: 'rgba(108, 43, 217, 0.2)', border: 'rgba(108, 43, 217, 0.5)', text: '#C4B5FD' },
   review: { bg: 'rgba(59, 130, 246, 0.2)', border: 'rgba(59, 130, 246, 0.5)', text: '#93C5FD' },
   practice: { bg: 'rgba(16, 185, 129, 0.2)', border: 'rgba(16, 185, 129, 0.5)', text: '#6EE7B7' },
@@ -63,7 +63,7 @@ export default function StudyPlanPage() {
   const [newWeak, setNewWeak] = useState('');
   const [studyHours, setStudyHours] = useState(4);
 
-  const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  const API = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
   const token = typeof window !== 'undefined' ? localStorage.getItem('iris_jwt_token') || 'demo' : 'demo';
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 
@@ -166,19 +166,25 @@ export default function StudyPlanPage() {
           {examEntries.map((entry, i) => (
             <div key={i} style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr auto', gap: '0.5rem', marginBottom: '0.5rem' }}>
               <input value={entry.subject} onChange={e => {
-                const updated = [...examEntries]; updated[i].subject = e.target.value; setExamEntries(updated);
+                const updated = [...examEntries];
+                const item = updated[i];
+                if (item) { item.subject = e.target.value; setExamEntries(updated); }
               }} placeholder="Subject" style={{
                 padding: '0.5rem', borderRadius: '0.5rem', background: 'rgba(30, 25, 55, 0.8)',
                 border: '1px solid rgba(55, 48, 80, 0.4)', color: '#E0E7FF', fontSize: '0.8rem'
               }} />
               <input type="date" value={entry.date} onChange={e => {
-                const updated = [...examEntries]; updated[i].date = e.target.value; setExamEntries(updated);
+                const updated = [...examEntries];
+                const item = updated[i];
+                if (item) { item.date = e.target.value; setExamEntries(updated); }
               }} style={{
                 padding: '0.5rem', borderRadius: '0.5rem', background: 'rgba(30, 25, 55, 0.8)',
                 border: '1px solid rgba(55, 48, 80, 0.4)', color: '#E0E7FF', fontSize: '0.8rem'
               }} />
               <input type="time" value={entry.time} onChange={e => {
-                const updated = [...examEntries]; updated[i].time = e.target.value; setExamEntries(updated);
+                const updated = [...examEntries];
+                const item = updated[i];
+                if (item) { item.time = e.target.value; setExamEntries(updated); }
               }} style={{
                 padding: '0.5rem', borderRadius: '0.5rem', background: 'rgba(30, 25, 55, 0.8)',
                 border: '1px solid rgba(55, 48, 80, 0.4)', color: '#E0E7FF', fontSize: '0.8rem'

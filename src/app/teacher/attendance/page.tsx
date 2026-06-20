@@ -206,15 +206,24 @@ export default function TeacherAttendancePage() {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
+        if (!sheetName) {
+          setUploadErrors([{ row: 0, error: 'Excel file has no worksheets.' }]);
+          return;
+        }
         const worksheet = workbook.Sheets[sheetName];
+        if (!worksheet) {
+          setUploadErrors([{ row: 0, error: 'Worksheet could not be read.' }]);
+          return;
+        }
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' }) as any[];
 
-        if (jsonData.length === 0) {
+        const firstRow = jsonData[0];
+        if (!firstRow || jsonData.length === 0) {
           setUploadErrors([{ row: 0, error: 'Excel file is empty or has no data rows.' }]);
           return;
         }
 
-        const headers = Object.keys(jsonData[0]);
+        const headers = Object.keys(firstRow);
 
         const mapping: Record<string, string> = {};
         const requiredCols = ['student_roll', 'status'];
@@ -277,9 +286,9 @@ export default function TeacherAttendancePage() {
   }, [processCsvFile, processExcelFile]);
 
   const mappedUploadRows: UploadRow[] = parsedFile ? parsedFile.rawData.map((row) => ({
-    student_roll: row[parsedFile.columnMapping.student_roll] || '',
+    student_roll: (parsedFile.columnMapping.student_roll && row[parsedFile.columnMapping.student_roll]) || '',
     student_name: parsedFile.columnMapping.student_name ? row[parsedFile.columnMapping.student_name] : undefined,
-    status: (row[parsedFile.columnMapping.status] || 'present').toLowerCase(),
+    status: ((parsedFile.columnMapping.status && row[parsedFile.columnMapping.status]) || 'present').toLowerCase() as any,
   })) : [];
 
   const uploadValidationErrors: { row: number; error: string }[] = [];
@@ -296,7 +305,7 @@ export default function TeacherAttendancePage() {
       const importData = mappedUploadRows.map(row => ({
         student_roll: row.student_roll,
         subject: formData.subject,
-        date: new Date().toISOString().split('T')[0],
+        date: new Date().toISOString().split('T')[0] || '',
         status: row.status,
         method: 'manual' as const,
         time_slot: formData.time_slot,
@@ -804,7 +813,7 @@ export default function TeacherAttendancePage() {
                       value={parsedFile.columnMapping.student_name || ''}
                       onChange={(e) => setParsedFile(prev => prev ? {
                         ...prev,
-                        columnMapping: { ...prev.columnMapping, student_name: e.target.value || undefined }
+                        columnMapping: { ...prev.columnMapping, student_name: e.target.value }
                       } : prev)}
                       className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-[#8B5CF6] focus:outline-none"
                     >

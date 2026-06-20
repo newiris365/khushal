@@ -1,8 +1,14 @@
 const { createClient } = require('@supabase/supabase-js');
+const jwt = require('jsonwebtoken');
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  console.error('CRITICAL: JWT_SECRET is missing or too short in Netlify settings function.');
+}
 
 const ALL_FEATURES = [
   'dashboard', 'admissions', 'students', 'attendance', 'timetable',
@@ -52,15 +58,15 @@ exports.handler = async (event) => {
     }
     const token = authHeader.replace('Bearer ', '');
 
-    // Decode JWT to get user info (simple decode, not full verify since backend handles that)
+    // Verify JWT signature cryptographically
     let userPayload;
+    if (!JWT_SECRET) {
+      return { statusCode: 500, headers, body: JSON.stringify({ success: false, error: 'Server misconfiguration: JWT_SECRET missing' }) };
+    }
     try {
-      const parts = token.split('.');
-      if (parts.length === 3) {
-        userPayload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
-      }
+      userPayload = jwt.verify(token, JWT_SECRET);
     } catch {
-      return { statusCode: 401, headers, body: JSON.stringify({ success: false, error: 'Invalid token' }) };
+      return { statusCode: 401, headers, body: JSON.stringify({ success: false, error: 'Invalid or expired token' }) };
     }
 
     if (!userPayload || !userPayload.institution_id) {

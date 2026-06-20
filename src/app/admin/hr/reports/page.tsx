@@ -30,6 +30,11 @@ export default function AdminHrReports() {
         fetch('/api/v1/hr/reports/leave-liability', { headers: getAuthHeaders() }),
         fetch('/api/v1/hr/reports/attrition', { headers: getAuthHeaders() })
       ]);
+      if (!hcRes.ok) throw new Error(`Headcount request failed: ${hcRes.status}`);
+      if (!salRes.ok) throw new Error(`Salary request failed: ${salRes.status}`);
+      if (!llRes.ok) throw new Error(`Leave liability request failed: ${llRes.status}`);
+      if (!atRes.ok) throw new Error(`Attrition request failed: ${atRes.status}`);
+
       const hcData = await hcRes.json();
       const salData = await salRes.json();
       const llData = await llRes.json();

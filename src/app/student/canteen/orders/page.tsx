@@ -78,7 +78,7 @@ export default function StudentOrdersPage() {
         try {
           const user = JSON.parse(userStr);
           if (user && user.id) studentId = user.id;
-        } catch (e) {}
+        } catch (e) { console.error('Failed to parse user profile:', e); }
       }
     }
     try {
@@ -98,7 +98,7 @@ export default function StudentOrdersPage() {
         try {
           const user = JSON.parse(userStr);
           if (user && user.id) studentId = user.id;
-        } catch (e) {}
+        } catch (e) { console.error('Failed to parse user profile:', e); }
       }
     }
     try {
@@ -108,7 +108,7 @@ export default function StudentOrdersPage() {
         rating,
         comment: comment || undefined
       });
-    } catch (err) {}
+    } catch (err) { console.error('Failed to submit feedback:', err); }
     setRatingOrder(null);
     setRating(0);
     setComment('');
@@ -171,7 +171,12 @@ export default function StudentOrdersPage() {
         ) : (
           <div className="flex flex-col gap-4">
             {displayed.map(order => {
-              const config = STATUS_CONFIG[order.status];
+              const config = STATUS_CONFIG[order.status] || {
+                color: 'text-white/40',
+                bg: 'bg-white/5',
+                icon: AlertCircle,
+                emoji: '❓'
+              };
               const StatusIcon = config.icon;
               const isActive = order.status !== 'Delivered' && order.status !== 'Cancelled';
               const stepIdx = STATUS_STEPS.indexOf(order.status);

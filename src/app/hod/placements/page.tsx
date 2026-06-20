@@ -546,7 +546,7 @@ export default function HodPlacementsPage() {
                   <div className="h-1.5 bg-gray-700 rounded-full overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-[#0891B2] to-cyan-400 rounded-full"
-                      style={{ width: `${(recruiter.offers / topRecruiters[0].offers) * 100}%` }}
+                      style={{ width: `${(recruiter.offers / (topRecruiters[0]?.offers || 1)) * 100}%` }}
                     />
                   </div>
                   <div className="flex justify-between text-xs">

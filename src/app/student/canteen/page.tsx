@@ -104,7 +104,7 @@ export default function StudentCanteenMenu() {
         try {
           const user = JSON.parse(userStr);
           if (user && user.id) studentId = user.id;
-        } catch (e) {}
+        } catch (e) { console.error('Failed to parse user profile:', e); }
       }
     }
 

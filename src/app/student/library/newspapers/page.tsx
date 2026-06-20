@@ -22,11 +22,14 @@ export default function DigitalNewspapersPage() {
   const loadNewspapers = async () => {
     try {
       const res = await apiGet('/library/newspapers');
-      if (res.success && res.newspapers?.length > 0) {
-        setNewspapers(res.newspapers);
-        // Default select first newspaper
-        setSelectedNews(res.newspapers[0]);
-        setBookmarks(res.newspapers[0].bookmarks || []);
+      if (res.success && res.newspapers && res.newspapers.length > 0) {
+        const firstNews = res.newspapers[0];
+        if (firstNews) {
+          setNewspapers(res.newspapers);
+          // Default select first newspaper
+          setSelectedNews(firstNews);
+          setBookmarks(firstNews.bookmarks || []);
+        }
       }
     } catch (err) {
       console.error(err);
@@ -51,9 +54,12 @@ export default function DigitalNewspapersPage() {
           bookmarks: []
         }
       ];
-      setNewspapers(mockNews);
-      setSelectedNews(mockNews[0]);
-      setBookmarks(mockNews[0].bookmarks || []);
+      const firstMock = mockNews[0];
+      if (firstMock) {
+        setNewspapers(mockNews);
+        setSelectedNews(firstMock);
+        setBookmarks(firstMock.bookmarks || []);
+      }
     } finally {
       setLoading(false);
     }

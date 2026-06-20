@@ -155,7 +155,7 @@ export default function AIChatWidget() {
 
   const handleRating = async (idx: number, ratingType: 'up' | 'down') => {
     const msg = messages[idx];
-    if (!msg.id) return;
+    if (!msg || !msg.id) return;
 
     try {
       const ratingVal = ratingType === 'up' ? 5 : 1;

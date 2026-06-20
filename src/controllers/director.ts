@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { supabaseAdmin } from '../config/supabase';
@@ -45,7 +44,7 @@ export async function getOverview(req: Request, res: Response) {
         .eq('date', today);
       
       if (attSummary && attSummary.length > 0) {
-        const sum = attSummary.reduce((acc, curr: any) => acc + parseFloat(curr.attendance_percent), 0);
+        const sum = attSummary.reduce((acc: number, curr: any) => acc + (parseFloat(curr.attendance_percent) || 0), 0);
         attendanceRate = Math.round(sum / attSummary.length);
       }
     } catch (e) {
@@ -62,7 +61,7 @@ export async function getOverview(req: Request, res: Response) {
         .eq('date', today)
         .maybeSingle();
       if (fees) {
-        feeCollectedToday = parseFloat(fees.total_collected);
+        feeCollectedToday = parseFloat(fees.total_collected) || 0;
       }
     } catch (e) {
       logger.error('Error fetching fee summary view:', e);

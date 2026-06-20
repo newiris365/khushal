@@ -197,23 +197,23 @@ export default function HealthScoresPage() {
                   <tr key={dept} className="hover:bg-[#6C2BD9]/5 transition-colors">
                     <td className="py-4 font-medium">{dept}</td>
                     <td className="py-4 text-center">
-                      <span className={`inline-block px-3 py-1.5 rounded-lg font-bold ${risks.critical > 0 ? 'bg-red-500/25 text-red-400 border border-red-500/40' : 'bg-white/5 text-white/40'}`}>
-                        {risks.critical}
+                      <span className={`inline-block px-3 py-1.5 rounded-lg font-bold ${(risks.critical || 0) > 0 ? 'bg-red-500/25 text-red-400 border border-red-500/40' : 'bg-white/5 text-white/40'}`}>
+                        {risks.critical || 0}
                       </span>
                     </td>
                     <td className="py-4 text-center">
-                      <span className={`inline-block px-3 py-1.5 rounded-lg font-bold ${risks.high > 0 ? 'bg-orange-500/25 text-orange-400 border border-orange-500/40' : 'bg-white/5 text-white/40'}`}>
-                        {risks.high}
+                      <span className={`inline-block px-3 py-1.5 rounded-lg font-bold ${(risks.high || 0) > 0 ? 'bg-orange-500/25 text-orange-400 border border-orange-500/40' : 'bg-white/5 text-white/40'}`}>
+                        {risks.high || 0}
                       </span>
                     </td>
                     <td className="py-4 text-center">
-                      <span className={`inline-block px-3 py-1.5 rounded-lg font-bold ${risks.medium > 0 ? 'bg-yellow-500/25 text-yellow-400 border border-yellow-500/40' : 'bg-white/5 text-white/40'}`}>
-                        {risks.medium}
+                      <span className={`inline-block px-3 py-1.5 rounded-lg font-bold ${(risks.medium || 0) > 0 ? 'bg-yellow-500/25 text-yellow-400 border border-yellow-500/40' : 'bg-white/5 text-white/40'}`}>
+                        {risks.medium || 0}
                       </span>
                     </td>
                     <td className="py-4 text-center">
-                      <span className={`inline-block px-3 py-1.5 rounded-lg font-bold ${risks.low > 0 ? 'bg-green-500/25 text-green-400 border border-green-500/40' : 'bg-white/5 text-white/40'}`}>
-                        {risks.low}
+                      <span className={`inline-block px-3 py-1.5 rounded-lg font-bold ${(risks.low || 0) > 0 ? 'bg-green-500/25 text-green-400 border border-green-500/40' : 'bg-white/5 text-white/40'}`}>
+                        {risks.low || 0}
                       </span>
                     </td>
                   </tr>

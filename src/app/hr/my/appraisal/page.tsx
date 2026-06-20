@@ -31,16 +31,20 @@ export default function EmployeeSelfAppraisal() {
         headers: getAuthHeaders()
       });
       const data = await res.json();
-      if (data.success && data.cycles && data.cycles.length > 0) {
+      const firstCycle = data.cycles?.[0];
+      if (data.success && data.cycles && firstCycle) {
         setCycles(data.cycles);
-        setSelectedCycle(data.cycles[0].id);
+        setSelectedCycle(firstCycle.id);
       } else {
         // Fallback mock cycle
         const demoCycles = [
           { id: 'c-1', name: 'Annual Performance Appraisal Review Cycle 2026', year: 2026, status: 'active' }
         ];
         setCycles(demoCycles);
-        setSelectedCycle(demoCycles[0].id);
+        const fallbackFirst = demoCycles[0];
+        if (fallbackFirst) {
+          setSelectedCycle(fallbackFirst.id);
+        }
       }
     } catch (err) {
       console.error(err);

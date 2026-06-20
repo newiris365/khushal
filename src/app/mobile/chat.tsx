@@ -90,7 +90,7 @@ export default function MobileAIChatScreen() {
         ref={flatListRef}
         data={messages}
         renderItem={renderItem}
-        keyExtractor={(_, index) => index.toString()}
+        keyExtractor={(item: Message, index: number) => index.toString()}
         contentContainerStyle={styles.listContent}
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
       />
@@ -117,7 +117,7 @@ export default function MobileAIChatScreen() {
             placeholder="Ask IRIS anything..."
             placeholderTextColor="#6C727F"
             value={inputMsg}
-            onChangeText={(text) => {
+            onChangeText={(text: string) => {
               if (text.length <= 500) {
                 setInputMsg(text);
                 setCharCount(text.length);

@@ -84,7 +84,7 @@ export default function DigitalMenuBoard() {
     return () => clearInterval(scrollTimer);
   }, []);
 
-  const promo = PROMOTIONS[promoIndex];
+  const promo = PROMOTIONS[promoIndex] ?? { title: "", dish: "", desc: "", price: "", badge: "" };
 
   return (
     <main className="fixed inset-0 bg-[#0D0A1A] text-white flex flex-col p-6 overflow-hidden">

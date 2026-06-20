@@ -3,6 +3,7 @@ import { z } from 'zod';
 import crypto from 'crypto';
 import { supabaseAdmin } from '../config/supabase';
 import logger from '../config/logger';
+import { canteenNs } from '../config/socketNamespaces';
 
 // Helper to resolve student_id from either user_id or students(id)
 async function resolveStudentId(idOrUserId: string): Promise<string> {
@@ -383,7 +384,6 @@ export async function placeOrder(req: Request, res: Response) {
 
     // Emit Socket.io event to kitchen/vendor display
     try {
-      const { canteenNs } = require('../server');
       if (canteenNs && order) {
         const kotPayload = {
           order_id: order.id,
@@ -458,7 +458,6 @@ export async function updateOrderStatus(req: Request, res: Response) {
 
     // Emit Socket.io event for real-time order status update
     try {
-      const { canteenNs } = require('../server');
       if (canteenNs) {
         const statusPayload = {
           order_id: order.id,
@@ -1042,7 +1041,6 @@ export async function cancelOrder(req: Request, res: Response) {
 
     // Emit Socket.io event for order cancellation
     try {
-      const { canteenNs } = require('../server');
       if (canteenNs) {
         const cancelPayload = {
           order_id: order.id,

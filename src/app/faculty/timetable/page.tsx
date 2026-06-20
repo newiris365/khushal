@@ -43,12 +43,16 @@ export default function FacultyTimetablePage() {
   const byDay: Record<string, TimetableEntry[]> = {};
   DAYS.forEach(d => { byDay[d] = []; });
   timetable.forEach(t => {
-    if (byDay[t.day_of_week]) byDay[t.day_of_week].push(t);
+    const list = byDay[t.day_of_week];
+    if (list) list.push(t);
   });
 
   // Sort each day by time_slot
   Object.keys(byDay).forEach(day => {
-    byDay[day].sort((a, b) => a.time_slot.localeCompare(b.time_slot));
+    const list = byDay[day];
+    if (list) {
+      list.sort((a, b) => a.time_slot.localeCompare(b.time_slot));
+    }
   });
 
   const today = new Date().toLocaleDateString('en-US', { weekday: 'long' });

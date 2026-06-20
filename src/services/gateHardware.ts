@@ -1,4 +1,5 @@
 import logger from '../config/logger';
+import { gateNs } from '../config/socketNamespaces';
 
 let SerialPort: any;
 try {
@@ -60,7 +61,6 @@ export function initGateHardware() {
 
   setInterval(() => {
     try {
-      const { gateNs } = require('../server');
       if (gateNs) {
         const item = mockActivities[Math.floor(Math.random() * mockActivities.length)];
         const simulatedLog = {

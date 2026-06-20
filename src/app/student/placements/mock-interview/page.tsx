@@ -159,76 +159,82 @@ export default function StudentMockInterview() {
           </div>
         ) : (
           /* Q&A Interactive Desk */
-          <div className="p-6 rounded-2xl bg-[#13102A]/85 border border-[#6C2BD9]/20 flex flex-col gap-5">
-            <div className="flex justify-between items-center text-[10px] text-[#C4B5FD]/50">
-              <span className="font-bold uppercase tracking-wider text-[#A78BFA]">Active Practice</span>
-              <span>Question {currentIdx + 1} of {MOCK_QUESTIONS.length}</span>
-            </div>
+          (() => {
+            const activeQuestion = MOCK_QUESTIONS[currentIdx];
+            if (!activeQuestion) return null;
+            return (
+              <div className="p-6 rounded-2xl bg-[#13102A]/85 border border-[#6C2BD9]/20 flex flex-col gap-5">
+                <div className="flex justify-between items-center text-[10px] text-[#C4B5FD]/50">
+                  <span className="font-bold uppercase tracking-wider text-[#A78BFA]">Active Practice</span>
+                  <span>Question {currentIdx + 1} of {MOCK_QUESTIONS.length}</span>
+                </div>
 
-            {/* active Q */}
-            <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-sm font-bold text-white leading-relaxed">
-              {MOCK_QUESTIONS[currentIdx].text}
-            </div>
+                {/* active Q */}
+                <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-sm font-bold text-white leading-relaxed">
+                  {activeQuestion.text}
+                </div>
 
-            {/* Answer Input */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-[9px] uppercase font-bold text-[#C4B5FD]/60">Your Answer (Voice transcription fallback)</label>
-              <textarea
-                value={responses[MOCK_QUESTIONS[currentIdx].id] || ''}
-                onChange={e => setResponses({ ...responses, [MOCK_QUESTIONS[currentIdx].id]: e.target.value })}
-                placeholder="Type your response covering systems logic, architecture patterns, or coding trade-offs..."
-                rows={8}
-                className="w-full px-4 py-3 bg-[#0D0A1A] border border-white/10 rounded-xl text-xs text-white placeholder:text-[#C4B5FD]/30 outline-none focus:border-[#6C2BD9]/50 resize-none font-mono"
-              />
-            </div>
+                {/* Answer Input */}
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-[9px] uppercase font-bold text-[#C4B5FD]/60">Your Answer (Voice transcription fallback)</label>
+                  <textarea
+                    value={responses[activeQuestion.id] || ''}
+                    onChange={e => setResponses({ ...responses, [activeQuestion.id]: e.target.value })}
+                    placeholder="Type your response covering systems logic, architecture patterns, or coding trade-offs..."
+                    rows={8}
+                    className="w-full px-4 py-3 bg-[#0D0A1A] border border-white/10 rounded-xl text-xs text-white placeholder:text-[#C4B5FD]/30 outline-none focus:border-[#6C2BD9]/50 resize-none font-mono"
+                  />
+                </div>
 
-            {/* Navigation Panel */}
-            <div className="flex items-center justify-between pt-4 border-t border-white/5">
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  disabled={currentIdx === 0}
-                  onClick={handlePrev}
-                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-[#C4B5FD]/70 hover:text-white disabled:opacity-40"
-                >
-                  Previous
-                </button>
-                <button
-                  type="button"
-                  disabled={currentIdx === MOCK_QUESTIONS.length - 1}
-                  onClick={handleNext}
-                  className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-[#C4B5FD]/70 hover:text-white disabled:opacity-40"
-                >
-                  Next
-                </button>
-              </div>
+                {/* Navigation Panel */}
+                <div className="flex items-center justify-between pt-4 border-t border-white/5">
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      disabled={currentIdx === 0}
+                      onClick={handlePrev}
+                      className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-[#C4B5FD]/70 hover:text-white disabled:opacity-40"
+                    >
+                      Previous
+                    </button>
+                    <button
+                      type="button"
+                      disabled={currentIdx === MOCK_QUESTIONS.length - 1}
+                      onClick={handleNext}
+                      className="px-4 py-2 rounded-xl bg-white/5 border border-white/10 text-xs font-bold text-[#C4B5FD]/70 hover:text-white disabled:opacity-40"
+                    >
+                      Next
+                    </button>
+                  </div>
 
-              {currentIdx === MOCK_QUESTIONS.length - 1 ? (
-                <button
-                  onClick={handleSubmit}
-                  disabled={loading}
-                  className="px-5 py-2.5 rounded-xl bg-[#6C2BD9] hover:bg-[#8B5CF6] text-xs font-bold text-white transition-all shadow-lg shadow-[#6C2BD9]/20 flex items-center gap-1.5"
-                >
-                  {loading ? (
-                    <>
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Evaluating...
-                    </>
+                  {currentIdx === MOCK_QUESTIONS.length - 1 ? (
+                    <button
+                      onClick={handleSubmit}
+                      disabled={loading}
+                      className="px-5 py-2.5 rounded-xl bg-[#6C2BD9] hover:bg-[#8B5CF6] text-xs font-bold text-white transition-all shadow-lg shadow-[#6C2BD9]/20 flex items-center gap-1.5"
+                    >
+                      {loading ? (
+                        <>
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Evaluating...
+                        </>
+                      ) : (
+                        <>
+                          <Send className="w-3.5 h-3.5" /> Submit Interview
+                        </>
+                      )}
+                    </button>
                   ) : (
-                    <>
-                      <Send className="w-3.5 h-3.5" /> Submit Interview
-                    </>
+                    <button
+                      onClick={handleNext}
+                      className="px-5 py-2.5 rounded-xl bg-[#6C2BD9]/10 border border-[#6C2BD9]/30 text-xs font-bold text-[#A78BFA] hover:bg-[#6C2BD9]/20 transition-all"
+                    >
+                      Save & Next
+                    </button>
                   )}
-                </button>
-              ) : (
-                <button
-                  onClick={handleNext}
-                  className="px-5 py-2.5 rounded-xl bg-[#6C2BD9]/10 border border-[#6C2BD9]/30 text-xs font-bold text-[#A78BFA] hover:bg-[#6C2BD9]/20 transition-all"
-                >
-                  Save & Next
-                </button>
-              )}
-            </div>
-          </div>
+                </div>
+              </div>
+            );
+          })()
         )}
 
       </div>

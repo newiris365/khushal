@@ -55,7 +55,7 @@ export default function StudentWalletPage() {
         try {
           const user = JSON.parse(userStr);
           if (user && user.id) studentId = user.id;
-        } catch (e) {}
+        } catch (e) { console.error('Failed to parse user profile:', e); }
       }
     }
     try {
@@ -77,7 +77,7 @@ export default function StudentWalletPage() {
         try {
           const user = JSON.parse(userStr);
           if (user && user.id) studentId = user.id;
-        } catch (e) {}
+        } catch (e) { console.error('Failed to parse user profile:', e); }
       }
     }
 

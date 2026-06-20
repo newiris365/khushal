@@ -179,35 +179,40 @@ export default function StudentAiTrainer() {
               </div>
 
               {/* Day workouts cards */}
-              {activePlan.plan?.week && Object.keys(activePlan.plan.week).map(weekKey => (
-                <div key={weekKey} className="space-y-4">
-                  {Object.keys(activePlan.plan.week[weekKey]).map(dayKey => {
-                    const dayPlan = activePlan.plan.week[weekKey][dayKey];
-                    return (
-                      <div key={dayKey} className="glass-panel border border-white/5 rounded-2xl p-5 space-y-3">
-                        <h4 className="text-xs font-black text-[#A78BFA] uppercase tracking-wider flex items-center gap-1.5 border-b border-white/5 pb-2">
-                          <Activity className="w-4 h-4 text-emerald-400" /> {dayKey} Schedule
-                        </h4>
-                        
-                        <div className="divide-y divide-white/5">
-                          {dayPlan.exercises?.map((ex, i) => (
-                            <div key={i} className="py-3 flex justify-between items-start gap-4">
-                              <div className="space-y-1">
-                                <span className="text-xs font-bold text-white block">{ex.name}</span>
-                                {ex.notes && <p className="text-[10px] text-[#C4B5FD]/50 leading-relaxed">{ex.notes}</p>}
+              {activePlan.plan?.week && Object.keys(activePlan.plan.week).map(weekKey => {
+                const weekPlan = activePlan.plan.week[weekKey];
+                if (!weekPlan) return null;
+                return (
+                  <div key={weekKey} className="space-y-4">
+                    {Object.keys(weekPlan).map(dayKey => {
+                      const dayPlan = weekPlan[dayKey];
+                      if (!dayPlan) return null;
+                      return (
+                        <div key={dayKey} className="glass-panel border border-white/5 rounded-2xl p-5 space-y-3">
+                          <h4 className="text-xs font-black text-[#A78BFA] uppercase tracking-wider flex items-center gap-1.5 border-b border-white/5 pb-2">
+                            <Activity className="w-4 h-4 text-emerald-400" /> {dayKey} Schedule
+                          </h4>
+                          
+                          <div className="divide-y divide-white/5">
+                            {dayPlan.exercises?.map((ex, i) => (
+                              <div key={i} className="py-3 flex justify-between items-start gap-4">
+                                <div className="space-y-1">
+                                  <span className="text-xs font-bold text-white block">{ex.name}</span>
+                                  {ex.notes && <p className="text-[10px] text-[#C4B5FD]/50 leading-relaxed">{ex.notes}</p>}
+                                </div>
+                                <div className="text-right shrink-0">
+                                  <span className="text-xs font-mono font-bold text-[#A78BFA]">{ex.sets} Sets × {ex.reps} Reps</span>
+                                  <span className="text-[9px] text-[#C4B5FD]/40 block mt-0.5 font-mono">{ex.rest_seconds}s Rest</span>
+                                </div>
                               </div>
-                              <div className="text-right shrink-0">
-                                <span className="text-xs font-mono font-bold text-[#A78BFA]">{ex.sets} Sets × {ex.reps} Reps</span>
-                                <span className="text-[9px] text-[#C4B5FD]/40 block mt-0.5 font-mono">{ex.rest_seconds}s Rest</span>
-                              </div>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
+                      );
+                    })}
+                  </div>
+                );
+              })}
             </div>
           ) : (
             /* ONBOARDING FORM VIEW */

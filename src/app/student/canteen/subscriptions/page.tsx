@@ -43,7 +43,7 @@ export default function StudentSubscriptionsPage() {
         try {
           const user = JSON.parse(userStr);
           if (user && user.id) studentId = user.id;
-        } catch (e) {}
+        } catch (e) { console.error('Failed to parse user profile:', e); }
       }
     }
     try {
@@ -60,7 +60,7 @@ export default function StudentSubscriptionsPage() {
         try {
           const user = JSON.parse(userStr);
           if (user && user.id) studentId = user.id;
-        } catch (e) {}
+        } catch (e) { console.error('Failed to parse user profile:', e); }
       }
     }
     try {
@@ -68,7 +68,7 @@ export default function StudentSubscriptionsPage() {
         ...form,
         student_id: studentId
       });
-    } catch (err) {}
+    } catch (err) { console.error('Failed to create subscription:', err); }
 
     const start = new Date(form.start_date);
     const end = new Date(form.end_date);
@@ -134,7 +134,7 @@ export default function StudentSubscriptionsPage() {
               <Zap className="w-4 h-4 text-emerald-400" /> Active Plans
             </h2>
             {activeSubs.map(sub => {
-              const config = PLAN_CONFIGS.find(p => p.type === sub.plan_type) || PLAN_CONFIGS[0];
+              const config = PLAN_CONFIGS.find(p => p.type === sub.plan_type) || PLAN_CONFIGS[0]!;
               const start = new Date(sub.start_date);
               const end = new Date(sub.end_date);
               const totalDays = Math.ceil((end.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
@@ -190,7 +190,7 @@ export default function StudentSubscriptionsPage() {
           <div className="flex flex-col gap-4">
             <h2 className="font-bold text-base text-[#C4B5FD]/50">Past Plans</h2>
             {expiredSubs.map(sub => {
-              const config = PLAN_CONFIGS.find(p => p.type === sub.plan_type) || PLAN_CONFIGS[0];
+              const config = PLAN_CONFIGS.find(p => p.type === sub.plan_type) || PLAN_CONFIGS[0]!;
               return (
                 <div key={sub.id} className="glass-panel rounded-2xl border border-white/5 p-5 opacity-50">
                   <div className="flex items-center justify-between">

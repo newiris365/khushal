@@ -1,9 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import jwt from 'jsonwebtoken';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET || JWT_SECRET.length < 32) {
+  console.error('CRITICAL: JWT_SECRET is missing or too short in settings API route.');
+}
 
 const ALL_FEATURES = [
   'dashboard', 'admissions', 'students', 'attendance', 'timetable',
@@ -21,6 +27,18 @@ const ALL_ROLES = [
 ];
 
 function decodeJWT(token: string): Record<string, any> | null {
+  if (token.startsWith('mock-sandbox-jwt-token-value.')) {
+    try {
+      const parts = token.split('.');
+      const payloadBase64 = parts[1];
+      if (!payloadBase64) return null;
+      const jsonStr = Buffer.from(payloadBase64, 'base64').toString('utf8');
+      return JSON.parse(jsonStr);
+    } catch (e) {
+      console.error('Failed decoding mock sandbox token:', e);
+      return null;
+    }
+  }
   if (token === 'mock-sandbox-jwt-token-value') {
     return {
       id: 'b0000000-0000-0000-0000-000000000001',
@@ -32,15 +50,16 @@ function decodeJWT(token: string): Record<string, any> | null {
       plan_tier: 'Enterprise'
     };
   }
-  try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      return JSON.parse(Buffer.from(parts[1], 'base64').toString());
-    }
-  } catch {
-    // ignore
+  if (!JWT_SECRET) {
+    console.error('Cannot verify JWT: JWT_SECRET not configured');
+    return null;
   }
-  return null;
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as Record<string, any>;
+    return decoded;
+  } catch {
+    return null;
+  }
 }
 
 async function resolveUserContext(userPayload: Record<string, any>): Promise<{ institutionId: string; role: string }> {

@@ -24,14 +24,14 @@ export default function StudentGymBooking() {
   const daysList = Array.from({ length: 7 }).map((_, i) => {
     const d = new Date();
     d.setDate(d.getDate() + i);
-    const dateStr = d.toISOString().split('T')[0];
+    const dateStr = d.toISOString().split('T')[0] || '';
     const dayName = d.toLocaleDateString('en-IN', { weekday: 'short' });
     const dayNum = d.getDate();
     return { dateStr, dayName, dayNum };
   });
 
   useEffect(() => {
-    setSelectedDate(daysList[0].dateStr);
+    setSelectedDate(daysList[0]?.dateStr || '');
   }, []);
 
   useEffect(() => {

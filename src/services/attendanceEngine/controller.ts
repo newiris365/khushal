@@ -1,4 +1,3 @@
-// @ts-nocheck
 // ============================================================
 // ATTENDANCE ENGINE API CONTROLLER
 // HTTP endpoints for attendance processing engine

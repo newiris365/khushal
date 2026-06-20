@@ -109,7 +109,7 @@ export default function PrincipalIncrements() {
       approved: { label: 'Approved', bg: 'bg-emerald-500/10', border: 'border-emerald-500/30', text: 'text-emerald-400' },
       rejected: { label: 'Rejected', bg: 'bg-red-500/10', border: 'border-red-500/30', text: 'text-red-400' }
     };
-    const s = config[status] || config.pending;
+    const s = config[status] || { label: 'Pending Approval', bg: 'bg-amber-500/10', border: 'border-amber-500/30', text: 'text-amber-400' };
     return <span className={`text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-md ${s.bg} border ${s.border} ${s.text} font-bold`}>{s.label}</span>;
   };
 

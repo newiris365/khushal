@@ -149,7 +149,7 @@ export default function AdminNotificationsPage() {
         ) : (
           <div className="flex flex-col gap-3">
             {notifications.map(n => {
-              const config = TYPE_CONFIG[n.type] || TYPE_CONFIG['General Update'];
+              const config = (TYPE_CONFIG[n.type] || TYPE_CONFIG['General Update'])!;
               const Icon = config.icon;
               const isExpanded = expandedId === n.id;
 

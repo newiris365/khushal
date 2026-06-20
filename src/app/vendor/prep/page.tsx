@@ -5,7 +5,7 @@ import { ChefHat, Calendar, Leaf, Drumstick, AlertTriangle } from 'lucide-react'
 import { apiGet } from '../../../lib/api';
 
 export default function VendorPrepPage() {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0] || '');
   const [items, setItems] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 

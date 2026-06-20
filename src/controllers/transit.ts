@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { z } from 'zod';
 import { supabaseAdmin } from '../config/supabase';
+import { transitNs } from '../config/socketNamespaces';
 
 // ========== ZOD VALIDATION SCHEMAS ==========
 
@@ -343,7 +344,6 @@ export async function endTrip(req: Request, res: Response) {
 
     // Broadcast trip:completed via Socket.io
     try {
-      const { transitNs } = require('../server');
       if (transitNs) {
         transitNs.to(`bus_${trip.bus_id}`).emit('trip:completed', { trip_id: id, status: 'completed' });
       }
@@ -505,10 +505,10 @@ export async function updateBusLocation(req: Request, res: Response) {
 
     // Broadcast via Socket.io
     try {
-      const { transitNs } = require('../server');
-      if (transitNs) {
+      const ns = transitNs;
+      if (ns) {
         // Broadcast location and ETAs to parent/student rooms
-        transitNs.to(`bus_${bus_id}`).emit('bus:location_updated', {
+        ns.to(`bus_${bus_id}`).emit('bus:location_updated', {
           bus_id,
           vehicle_number: bus.vehicle_number,
           latitude,
@@ -520,7 +520,7 @@ export async function updateBusLocation(req: Request, res: Response) {
         });
 
         // Broadcast to admin fleet view
-        transitNs.to('admin:transit').emit('bus:location_updated', {
+        ns.to('admin:transit').emit('bus:location_updated', {
           bus_id,
           vehicle_number: bus.vehicle_number,
           latitude,
@@ -533,7 +533,7 @@ export async function updateBusLocation(req: Request, res: Response) {
         // Broadcast approaching notifications if distance is less than 0.8 km
         etas.forEach((item: any) => {
           if (item.distance_km < 0.8) {
-            transitNs.to(`bus_${bus_id}`).emit(`bus:approaching:${item.stop_index}`, {
+            ns.to(`bus_${bus_id}`).emit(`bus:approaching:${item.stop_index}`, {
               stop_name: item.name,
               eta_minutes: item.eta_minutes
             });
@@ -757,7 +757,6 @@ export async function createIncident(req: Request, res: Response) {
     // Trigger delay alerts to subscribed students if delay incidents happen
     if (parse.data.severity === 'high' || parse.data.severity === 'critical') {
       try {
-        const { transitNs } = require('../server');
         if (transitNs) {
           transitNs.to(`bus_${parse.data.bus_id}`).emit('trip:delayed', {
             incident_type: parse.data.incident_type,
@@ -1214,8 +1213,8 @@ export async function triggerSos(req: Request, res: Response) {
       : 'GPS lat: 26.2912, lng: 73.0156 (Updated 1 minute ago)';
 
     const incidentDetails = {
-      parent_name: (req.user as any)?.name || 'Emergency Contact',
-      phone: (req.user as any)?.phone || '+91 98290 12347',
+      parent_name: req.user?.name || 'Emergency Contact',
+      phone: req.user?.phone || '+91 98290 12347',
       last_rfid_location: lastRfidLocation,
       last_gps_location: lastGpsLocation,
       driver_broadcasted: true
@@ -1243,7 +1242,6 @@ export async function triggerSos(req: Request, res: Response) {
 
     // 5. Broadcast to driver console & admin via websocket
     try {
-      const { transitNs } = require('../server');
       if (transitNs) {
         // Broadcast to specific bus
         transitNs.to(`bus_${bus_id}`).emit('emergency:sos_alert', {
@@ -1466,7 +1464,7 @@ export async function registerVehicle(req: Request, res: Response) {
       .from('registered_vehicles')
       .insert({
         institution_id: institutionId,
-        student_id: student_id || (req.user as any)?.student_id || 'c0000000-0000-0000-0000-000000000006',
+        student_id: student_id || req.user?.student_id || 'c0000000-0000-0000-0000-000000000006',
         vehicle_number,
         type,
         color,

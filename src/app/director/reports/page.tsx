@@ -33,7 +33,7 @@ export default function DirectorReportsPage() {
   const [loading, setLoading] = useState(true);
   const [compiling, setCompiling] = useState(false);
   const [reportType, setReportType] = useState<'weekly' | 'monthly'>('weekly');
-  const [reportDate, setReportDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [reportDate, setReportDate] = useState<string>(new Date().toISOString().split('T')[0] || '');
 
   useEffect(() => {
     loadReportsData();
@@ -55,7 +55,7 @@ export default function DirectorReportsPage() {
         {
           id: 'r1',
           report_type: 'weekly',
-          report_date: new Date().toISOString().split('T')[0],
+          report_date: new Date().toISOString().split('T')[0] || '',
           data: {
             attendance_rate: 84,
             fee_collected: 185000,

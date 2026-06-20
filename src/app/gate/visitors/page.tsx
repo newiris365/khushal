@@ -86,7 +86,7 @@ export default function VisitorIntakePage() {
       'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&q=80&w=200',
       'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&q=80&w=200'
     ];
-    const chosen = randomAvatars[Math.floor(Math.random() * randomAvatars.length)];
+    const chosen = randomAvatars[Math.floor(Math.random() * randomAvatars.length)] || '';
     setCapturedPhoto(chosen);
     setVisitorPhotoUrl(chosen);
     setCameraActive(false);

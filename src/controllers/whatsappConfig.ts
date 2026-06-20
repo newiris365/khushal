@@ -64,7 +64,7 @@ export async function saveWhatsAppConfig(req: Request, res: Response) {
       .limit(1)
       .single();
 
-    const userId = (req as any).userId || null;
+    const userId = req.user?.id || null;
 
     const configData = {
       provider,

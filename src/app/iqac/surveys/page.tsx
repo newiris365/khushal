@@ -39,9 +39,10 @@ export default function IqacSurveyDesk() {
         headers: getAuthHeaders()
       });
       const data = await res.json();
-      if (data.success && data.surveys && data.surveys.length > 0) {
+      const firstSurvey = data.surveys?.[0];
+      if (data.success && data.surveys && firstSurvey) {
         setSurveys(data.surveys);
-        setSelectedSurvey(data.surveys[0].id);
+        setSelectedSurvey(firstSurvey.id);
       } else {
         // Fallback mock surveys
         const demoSurveys: Survey[] = [
@@ -50,7 +51,10 @@ export default function IqacSurveyDesk() {
           { id: 's-3', survey_type: 'Employer Industry Survey', academic_year: '2025-26', is_active: false, created_at: '2025-06-11T12:00:00Z' }
         ];
         setSurveys(demoSurveys);
-        setSelectedSurvey(demoSurveys[0].id);
+        const fallbackFirst = demoSurveys[0];
+        if (fallbackFirst) {
+          setSelectedSurvey(fallbackFirst.id);
+        }
       }
     } catch (err) {
       console.error(err);

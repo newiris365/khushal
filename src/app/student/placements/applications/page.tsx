@@ -122,7 +122,7 @@ export default function StudentApplicationsTracker() {
         ) : (
           <div className="flex flex-col gap-4">
             {applications.map(app => {
-              const config = STATUS_CONFIG[app.status] || STATUS_CONFIG.applied;
+              const config = STATUS_CONFIG[app.status] || { label: 'Applied', color: 'text-blue-400', bg: 'bg-blue-500/10', emoji: '📋' };
               const isExpanded = expandedId === app.id;
               
               return (

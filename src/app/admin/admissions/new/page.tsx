@@ -110,7 +110,7 @@ export default function AdminAdmissionsPage() {
     if (!csvFile) return;
     const text = await csvFile.text();
     const lines = text.split('\n').filter(l => l.trim());
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+    const headers = lines[0]?.split(',').map(h => h.trim().toLowerCase()) || [];
     const records = lines.slice(1).map(line => {
       const values = line.split(',');
       const obj: any = {};

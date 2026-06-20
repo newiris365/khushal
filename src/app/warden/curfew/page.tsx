@@ -20,7 +20,7 @@ export default function WardenCurfewPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [selectedBlock, setSelectedBlock] = useState('');
   const [blocks, setBlocks] = useState<any[]>([]);
-  const [checkDate, setCheckDate] = useState(new Date().toISOString().split('T')[0]);
+  const [checkDate, setCheckDate] = useState(new Date().toISOString().split('T')[0] || '');
   const [isMarking, setIsMarking] = useState(false);
   const [result, setResult] = useState<any>(null);
 
@@ -53,8 +53,11 @@ export default function WardenCurfewPage() {
 
   const togglePresent = (idx: number) => {
     const updated = [...students];
-    updated[idx].is_present = !updated[idx].is_present;
-    setStudents(updated);
+    const student = updated[idx];
+    if (student) {
+      student.is_present = !student.is_present;
+      setStudents(updated);
+    }
   };
 
   const markAllPresent = () => {

@@ -215,7 +215,7 @@ export default function StrategicGoalsPage() {
                       <Calendar className="w-3.5 h-3.5" /> Year {year} Performance
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {history[year].map((h: any, idx: number) => {
+                      {(history[year] || []).map((h: any, idx: number) => {
                         const achieved = h.current_value >= h.target_value;
                         return (
                           <div key={idx} className="bg-[#0D0A1A]/50 border border-white/5 p-3 rounded-2xl flex justify-between items-center text-xs">

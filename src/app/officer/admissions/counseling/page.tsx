@@ -62,7 +62,7 @@ export default function OfficerCounselingPage() {
         setApplicants(appRes.applicants);
         const filtered = appRes.applicants.filter((a: any) => a.status === 'merit_listed' || a.status === 'offered');
         if (filtered.length > 0) {
-          setAssignApplicantId(filtered[0].id);
+          setAssignApplicantId(filtered[0]?.id || '');
         }
       }
     } catch {
@@ -72,13 +72,13 @@ export default function OfficerCounselingPage() {
         { id: 'b0000000-0000-0000-0000-000000009991', first_name: 'Priyanka', last_name: 'Sharma', application_number: 'SIET-2026-112930', status: 'merit_listed' }
       ];
       setApplicants(mockApplicants);
-      setAssignApplicantId(mockApplicants[0].id);
+      setAssignApplicantId(mockApplicants[0]?.id || '');
 
       const mockSessions: SessionRecord[] = [
-        { id: 'sess-1', round_number: 1, scheduled_date: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], mode: 'online', meeting_link: 'https://meet.jit.si/siet-admissions-counseling-room-2026' }
+        { id: 'sess-1', round_number: 1, scheduled_date: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] || '', mode: 'online', meeting_link: 'https://meet.jit.si/siet-admissions-counseling-room-2026' }
       ];
       setSessions(mockSessions);
-      setSelectedSessionId(mockSessions[0].id);
+      setSelectedSessionId(mockSessions[0]?.id || '');
 
       const mockSlots: SlotRecord[] = [
         {
@@ -156,7 +156,7 @@ export default function OfficerCounselingPage() {
     const payload = {
       session_id: selectedSessionId,
       applicant_id: assignApplicantId,
-      slot_time: new Date(`${newSessionDate || new Date().toISOString().split('T')[0]}T${assignTime}:00`).toISOString()
+      slot_time: new Date(`${newSessionDate || new Date().toISOString().split('T')[0] || ''}T${assignTime}:00`).toISOString()
     };
 
     try {

@@ -2,6 +2,7 @@ import cron from 'node-cron';
 import { supabaseAdmin, isSupabaseOffline } from './supabase';
 import logger from './logger';
 import { generatePDFKitFallback, uploadReportToSupabase } from '../services/pdfGenerator';
+import { gateNs, directorNs } from './socketNamespaces';
 
 // Safeguard background tasks: skip database-dependent cron runs when Supabase is offline
 const originalSchedule = cron.schedule;
@@ -445,7 +446,6 @@ cron.schedule('0 * * * *', async () => {
         } else {
           // Emit websocket alert
           try {
-            const { gateNs } = require('../server');
             if (gateNs && incident) {
               gateNs.to('admin:security').emit('gate:incident_reported', {
                 id: incident.id,
@@ -590,7 +590,6 @@ cron.schedule('*/15 * * * *', async () => {
             
             // Broadcast live Socket alerts
             try {
-              const { directorNs } = require('../server');
               if (directorNs) {
                 directorNs.to('director:dashboard').emit('director:alert_triggered', alertData);
               }
@@ -1199,11 +1198,9 @@ cron.schedule('0 19 * * *', async () => {
     for (const inst of institutions) {
       // Get all active students with their attendance stats (last 120 days)
       const { data: students } = await supabaseAdmin
-        .rpc('get_institution_attendance_summary', {}, { 
-          // Use service role to bypass RLS for cron
-          head: false
-        })
-        .eq('institution_id', inst.id);
+        .rpc('get_institution_attendance_summary', { 
+          p_institution_id: inst.id 
+        });
 
       if (!students || students.length === 0) continue;
 

@@ -77,7 +77,9 @@ function generateId(): string {
 
 function getPeriodTimes(config: PeriodConfig): string[] {
   const times: string[] = [];
-  const [startH, startM] = config.startTime.split(':').map(Number);
+  const parts = config.startTime.split(':').map(Number);
+  const startH = parts[0] || 9;
+  const startM = parts[1] || 0;
   let currentMinutes = startH * 60 + startM;
 
   for (let i = 0; i < config.periodsPerDay; i++) {
@@ -137,22 +139,27 @@ function distributeTimetable(
       if (!slot) continue;
 
       const { day, period } = slot;
-      if (grid[day][period] !== null) continue;
+      const row = grid[day];
+      if (!row) continue;
+      if (row[period] !== null) continue;
 
       const teacher = subject.teacherName;
-      if (teacher && (teacherDailyCount[DAYS[day]][teacher] || 0) >= teacherLoad.maxPeriodsPerDay) {
+      const dayName = DAYS[day];
+      if (!dayName) continue;
+      const dayCount = teacherDailyCount[dayName];
+      if (teacher && dayCount && (dayCount[teacher] || 0) >= teacherLoad.maxPeriodsPerDay) {
         continue;
       }
 
-      grid[day][period] = {
+      row[period] = {
         subject: subject.name,
         teacher: subject.teacherName,
         room: '',
         colorIndex: subjects.indexOf(subject) % SUBJECT_COLORS.length,
       };
 
-      if (teacher) {
-        teacherDailyCount[DAYS[day]][teacher] = (teacherDailyCount[DAYS[day]][teacher] || 0) + 1;
+      if (teacher && dayCount) {
+        dayCount[teacher] = (dayCount[teacher] || 0) + 1;
       }
       placed++;
     }
@@ -169,25 +176,38 @@ function distributeTimetable(
   }
 
   for (let d = 0; d < DAYS.length; d++) {
+    const row = grid[d];
+    if (!row) continue;
+    const dayName = DAYS[d];
+    if (!dayName) continue;
+
     const teacherSlots: Record<string, number[]> = {};
     for (let p = 0; p < config.periodsPerDay; p++) {
-      const cell = grid[d][p];
+      const cell = row[p];
       if (cell && cell.teacher) {
-        if (!teacherSlots[cell.teacher]) teacherSlots[cell.teacher] = [];
-        teacherSlots[cell.teacher].push(p);
+        let list = teacherSlots[cell.teacher];
+        if (!list) {
+          list = [];
+          teacherSlots[cell.teacher] = list;
+        }
+        list.push(p);
       }
     }
     Object.entries(teacherSlots).forEach(([teacher, periods]) => {
       for (let i = 1; i < periods.length; i++) {
-        if (periods[i] - periods[i - 1] === 1) {
-          const nextCell = grid[d][periods[i]];
-          const prevCell = grid[d][periods[i - 1]];
+        const currentPeriod = periods[i];
+        const prevPeriod = periods[i - 1];
+        if (currentPeriod === undefined || prevPeriod === undefined) continue;
+
+        if (currentPeriod - prevPeriod === 1) {
+          const nextCell = row[currentPeriod];
+          const prevCell = row[prevPeriod];
           if (nextCell && prevCell && nextCell.subject !== prevCell.subject) {
             conflicts.push({
               type: 'consecutive',
-              message: `${teacher} has back-to-back different subjects on ${DAYS[d]}`,
-              day: DAYS[d],
-              period: periods[i],
+              message: `${teacher} has back-to-back different subjects on ${dayName}`,
+              day: dayName,
+              period: currentPeriod,
               severity: 'low',
             });
           }
@@ -339,7 +359,7 @@ export default function HodAutoTimetablePage() {
   const periodTimes = useMemo(() => getPeriodTimes(periodConfig), [periodConfig]);
 
   const getSubjectColorClass = (colorIndex: number): string => {
-    return SUBJECT_COLORS[colorIndex % SUBJECT_COLORS.length];
+    return SUBJECT_COLORS[colorIndex % SUBJECT_COLORS.length] || '';
   };
 
   const steps = [
@@ -627,7 +647,9 @@ export default function HodAutoTimetablePage() {
                   </h3>
                   <div className="space-y-1">
                     {periodTimes.map((time, idx) => {
-                      const [h, m] = time.split(':').map(Number);
+                      const parts = time.split(':').map(Number);
+                      const h = parts[0] || 9;
+                      const m = parts[1] || 0;
                       const endMinutes = h * 60 + m + periodConfig.durationMinutes;
                       const endH = Math.floor(endMinutes / 60);
                       const endM = endMinutes % 60;

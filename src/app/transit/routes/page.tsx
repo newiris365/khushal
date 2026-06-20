@@ -22,12 +22,14 @@ export default function BrowseRoutesPage() {
   const loadRoutes = async () => {
     try {
       const res = await apiGet('/transit/routes');
-      if (res.success) {
-        setRoutes(res.routes || []);
-        if (res.routes?.length > 0) {
-          setSelectedRoute(res.routes[0]);
-          if (res.routes[0].stops?.length > 0) {
-            setSelectedStop(res.routes[0].stops[0].name);
+      if (res.success && res.routes && res.routes.length > 0) {
+        setRoutes(res.routes);
+        const firstRoute = res.routes[0];
+        if (firstRoute) {
+          setSelectedRoute(firstRoute);
+          const firstStop = firstRoute.stops?.[0];
+          if (firstStop) {
+            setSelectedStop(firstStop.name);
           }
         }
       }
@@ -65,9 +67,15 @@ export default function BrowseRoutesPage() {
           buses: [{ vehicle_number: 'RJ-19-PB-8820' }]
         }
       ];
-      setRoutes(mockRoutes);
-      setSelectedRoute(mockRoutes[0]);
-      setSelectedStop(mockRoutes[0].stops[0].name);
+      const firstRoute = mockRoutes[0];
+      if (firstRoute) {
+        setRoutes(mockRoutes);
+        setSelectedRoute(firstRoute);
+        const firstStop = firstRoute.stops?.[0];
+        if (firstStop) {
+          setSelectedStop(firstStop.name);
+        }
+      }
     } finally {
       setLoading(false);
     }

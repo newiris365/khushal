@@ -382,7 +382,7 @@ export default function TeacherAssignmentsPage() {
             </div>
           ) : (
             filteredAssignments.map(a => {
-              const stCfg = STATUS_CONFIG[a.status] || STATUS_CONFIG.Active;
+              const stCfg = STATUS_CONFIG[a.status] || { bg: 'bg-emerald-500/15', text: 'text-emerald-400', border: 'border-emerald-500/30', icon: <CheckCircle className="w-3 h-3" /> };
               const submissionPercent = a.total_students > 0 ? Math.round((a.submissions_count / a.total_students) * 100) : 0;
               return (
                 <div

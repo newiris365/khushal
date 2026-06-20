@@ -88,7 +88,7 @@ export default function AdminEscalationsPage() {
         }
       ];
       setEscalations(fallbackList);
-      setSelectedTicket(fallbackList[0]);
+      setSelectedTicket(fallbackList[0] || null);
     } finally {
       setLoading(false);
     }

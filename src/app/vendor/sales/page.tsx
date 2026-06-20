@@ -5,7 +5,7 @@ import { BarChart3, Calendar, TrendingUp, Clock, Wallet, IndianRupee } from 'luc
 import { apiGet } from '../../../lib/api';
 
 export default function VendorSalesPage() {
-  const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+  const [date, setDate] = useState(new Date().toISOString().split('T')[0] || '');
   const [sales, setSales] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
 

@@ -138,7 +138,7 @@ export default function AdminAnalyticsPage() {
     );
   }
 
-  const maxFunnelValue = funnel.length > 0 ? funnel[0].value : 1;
+  const maxFunnelValue = funnel.length > 0 && funnel[0] ? funnel[0].value : 1;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">

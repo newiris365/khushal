@@ -42,7 +42,7 @@ export default function SentimentPage() {
   const [analyzing, setAnalyzing] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  const API = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
   const token = typeof window !== 'undefined' ? localStorage.getItem('iris_jwt_token') || 'demo' : 'demo';
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
 

@@ -60,9 +60,18 @@ export default function CanteenHubPage() {
   const [wallet, setWallet] = useState<WalletData>(MOCK_WALLET);
   const [loading, setLoading] = useState(true);
 
-  const studentId = typeof window !== 'undefined'
-    ? JSON.parse(localStorage.getItem('iris_user_profile') || '{}').id || 's0000000-0000-0000-0000-000000000001'
-    : 's0000000-0000-0000-0000-000000000001';
+  const [studentId] = useState(() => {
+    const fallback = 's0000000-0000-0000-0000-000000000001';
+    if (typeof window === 'undefined') return fallback;
+    try {
+      const raw = localStorage.getItem('iris_user_profile');
+      if (raw) {
+        const profile = JSON.parse(raw);
+        if (profile?.id) return profile.id;
+      }
+    } catch { /* invalid JSON */ }
+    return fallback;
+  });
 
   useEffect(() => {
     loadWallet();

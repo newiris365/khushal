@@ -32,7 +32,7 @@ export default function AdminOffersPage() {
 
   const handleDelete = async (id: string) => {
     if (!confirm('Delete this offer?')) return;
-    try { await apiDelete(`/canteen/offers/${id}`); } catch (err) {}
+    try { await apiDelete(`/canteen/offers/${id}`); } catch (err) { console.error('Failed to delete offer:', err); }
     setOffers(prev => prev.filter(o => o.id !== id));
   };
 
@@ -43,7 +43,7 @@ export default function AdminOffersPage() {
   };
 
   const handleCreate = async (form: any) => {
-    try { await apiPost('/canteen/offers', form); } catch (err) {}
+    try { await apiPost('/canteen/offers', form); } catch (err) { console.error('Failed to create offer:', err); }
     setOffers(prev => [...prev, { ...form, id: `new-${Date.now()}`, used_count: 0, is_active: true }]);
     setShowModal(false);
   };

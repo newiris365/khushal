@@ -55,7 +55,11 @@ checkConnectivity();
 export function getDynamicSupabaseClient(): SupabaseClient {
   const token = authLocalStorage.getStore();
   if (token && supabaseUrl) {
-    const jwtSecret = process.env.JWT_SECRET || 'iris365-superSecure-jwt-K3y!2026@SIET-campus-prod-xK9mT4wQ';
+    const jwtSecret = process.env.JWT_SECRET;
+    if (!jwtSecret) {
+      console.error('CRITICAL: JWT_SECRET not configured. Token verification will fail.');
+      return _supabaseAdminInternal;
+    }
     let isBackendToken = false;
     if (token.startsWith('mock-sandbox')) {
       isBackendToken = true;
@@ -112,9 +116,20 @@ export let mockCourseRegistrations: any[] = [
 // Define Mock client details for offline simulation mode
 const mockAuth = {
   signInWithPassword: async ({ email }: { email: string }) => {
-    let id = 'b0000000-0000-0000-0000-000000000002';
-    if (email === 'khushal@gmail.com') id = 'b0000000-0000-0000-0000-000000000006';
-    else if (email === 'guard@siet.edu.in') id = 'b0000000-0000-0000-0000-000000000015';
+    let id = 'b0000000-0000-0000-0000-000000000002'; // default admin
+    if (email === 'siddharth@sin.education') id = 'b0000000-0000-0000-0000-000000000001';
+    else if (email === 'admin@siet.edu.in') id = 'b0000000-0000-0000-0000-000000000002';
+    else if (email === 'alok.vyas@siet.edu.in') id = 'b0000000-0000-0000-0000-000000000003';
+    else if (email === 'khushal@gmail.com') id = 'b0000000-0000-0000-0000-000000000006';
+    else if (email === 'madanlal@gmail.com') id = 'b0000000-0000-0000-0000-000000000011';
+    else if (email === 'warden@siet.edu.in') id = 'b0000000-0000-0000-0000-000000000012';
+    else if (email === 'rajesh.driver@siet.edu.in') id = 'b0000000-0000-0000-0000-000000000013';
+    else if (email === 'canteen@siet.edu.in') id = 'b0000000-0000-0000-0000-000000000014';
+    else if (email === 'security@siet.edu.in' || email === 'guard@siet.edu.in') id = 'b0000000-0000-0000-0000-000000000015';
+    else if (email === 'teacher@sin.education') id = 'b0000000-0000-0000-0000-000000000016';
+    else if (email === 'hod@sin.education') id = 'b0000000-0000-0000-0000-000000000017';
+    else if (email === 'librarian@sin.education') id = 'b0000000-0000-0000-0000-000000000018';
+    else if (email === 'director@siet.edu.in') id = 'b0000000-0000-0000-0000-000000000019';
     return {
       data: {
         user: { id, email, role: 'authenticated' },
@@ -147,12 +162,38 @@ function getMockDataForTable(tableName: string) {
     case 'users':
       return [
         {
+          id: 'b0000000-0000-0000-0000-000000000001',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          role: 'SuperAdmin',
+          name: 'Siddharth Singh (Mock Sandbox)',
+          email: 'siddharth@sin.education',
+          phone: '+919999988880',
+          is_active: true,
+          institutions: {
+            name: 'SIN Institute of Engineering & Technology (SIET)',
+            plan_tier: 'Enterprise'
+          }
+        },
+        {
           id: 'b0000000-0000-0000-0000-000000000002',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          role: 'Admin',
+          name: 'Dr. K. R. Sharma (Mock Sandbox)',
+          email: 'admin@siet.edu.in',
+          phone: '+919876543211',
+          is_active: true,
+          institutions: {
+            name: 'SIN Institute of Engineering & Technology (SIET)',
+            plan_tier: 'University'
+          }
+        },
+        {
+          id: 'b0000000-0000-0000-0000-000000000019',
           institution_id: 'a0000000-0000-0000-0000-000000000001',
           role: 'Director',
           name: 'Dr. K. R. Sharma (Mock Sandbox)',
           email: 'director@siet.edu.in',
-          phone: '+919876543211',
+          phone: '+919876543212',
           is_active: true,
           institutions: {
             name: 'SIN Institute of Engineering & Technology (SIET)',
@@ -166,6 +207,123 @@ function getMockDataForTable(tableName: string) {
           name: 'Khushal Gehlot (Mock Sandbox)',
           email: 'khushal@gmail.com',
           phone: '+919999988888',
+          is_active: true,
+          institutions: {
+            name: 'SIN Institute of Engineering & Technology (SIET)',
+            plan_tier: 'University'
+          }
+        },
+        {
+          id: 'b0000000-0000-0000-0000-000000000012',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          role: 'Warden',
+          name: 'Jaswant Singh (Mock Sandbox)',
+          email: 'warden@siet.edu.in',
+          phone: '+919876543222',
+          is_active: true,
+          institutions: {
+            name: 'SIN Institute of Engineering & Technology (SIET)',
+            plan_tier: 'University'
+          }
+        },
+        {
+          id: 'b0000000-0000-0000-0000-000000000015',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          role: 'Security',
+          name: 'Guard Sher Singh (Mock Sandbox)',
+          email: 'security@siet.edu.in',
+          phone: '+919876543299',
+          is_active: true,
+          institutions: {
+            name: 'SIN Institute of Engineering & Technology (SIET)',
+            plan_tier: 'University'
+          }
+        },
+        {
+          id: 'b0000000-0000-0000-0000-000000000013',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          role: 'Driver',
+          name: 'Rajesh Kumar (Mock Sandbox)',
+          email: 'rajesh.driver@siet.edu.in',
+          phone: '+919876543233',
+          is_active: true,
+          institutions: {
+            name: 'SIN Institute of Engineering & Technology (SIET)',
+            plan_tier: 'University'
+          }
+        },
+        {
+          id: 'b0000000-0000-0000-0000-000000000003',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          role: 'Staff',
+          name: 'Prof. Alok Vyas (Mock Sandbox)',
+          email: 'alok.vyas@siet.edu.in',
+          phone: '+919876543244',
+          is_active: true,
+          institutions: {
+            name: 'SIN Institute of Engineering & Technology (SIET)',
+            plan_tier: 'University'
+          }
+        },
+        {
+          id: 'b0000000-0000-0000-0000-000000000011',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          role: 'Parent',
+          name: 'Mr. Madanlal Gehlot (Mock Sandbox)',
+          email: 'madanlal@gmail.com',
+          phone: '+919876543255',
+          is_active: true,
+          institutions: {
+            name: 'SIN Institute of Engineering & Technology (SIET)',
+            plan_tier: 'University'
+          }
+        },
+        {
+          id: 'b0000000-0000-0000-0000-000000000014',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          role: 'Vendor',
+          name: 'Ramesh Canteen Wale (Mock Sandbox)',
+          email: 'canteen@siet.edu.in',
+          phone: '+919876543266',
+          is_active: true,
+          institutions: {
+            name: 'SIN Institute of Engineering & Technology (SIET)',
+            plan_tier: 'University'
+          }
+        },
+        {
+          id: 'b0000000-0000-0000-0000-000000000016',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          role: 'Teacher',
+          name: 'Prof. Neha Gupta (Mock Sandbox)',
+          email: 'teacher@sin.education',
+          phone: '+919876543277',
+          is_active: true,
+          institutions: {
+            name: 'SIN Institute of Engineering & Technology (SIET)',
+            plan_tier: 'University'
+          }
+        },
+        {
+          id: 'b0000000-0000-0000-0000-000000000017',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          role: 'HOD',
+          name: 'Dr. Vikram Mehta (Mock Sandbox)',
+          email: 'hod@sin.education',
+          phone: '+919876543288',
+          is_active: true,
+          institutions: {
+            name: 'SIN Institute of Engineering & Technology (SIET)',
+            plan_tier: 'University'
+          }
+        },
+        {
+          id: 'b0000000-0000-0000-0000-000000000018',
+          institution_id: 'a0000000-0000-0000-0000-000000000001',
+          role: 'Librarian',
+          name: 'Sunita Devi (Mock Sandbox)',
+          email: 'librarian@sin.education',
+          phone: '+919876543289',
           is_active: true,
           institutions: {
             name: 'SIN Institute of Engineering & Technology (SIET)',
@@ -645,7 +803,13 @@ export function getSupabaseClient(req?: Request) {
 
 // Middleware: block requests when Supabase is offline (returns 503)
 export function requireSupabaseOnline(req: Request, res: Response, next: NextFunction) {
-  // Allow requests to pass through in offline sandbox simulation mode so mock data is served successfully
+  if (isSupabaseOffline) {
+    // In offline sandbox mode, allow requests to pass through for mock data
+    // In production, this should block requests
+    if (process.env.NODE_ENV === 'production') {
+      return res.status(503).json({ success: false, error: 'Database is currently unavailable. Please try again later.' });
+    }
+  }
   next();
 }
 

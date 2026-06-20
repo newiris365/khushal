@@ -8,7 +8,7 @@ import Link from 'next/link';
 export default function AdminVisitorManagementPage() {
   const [visitors, setVisitors] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0] || '');
   const [searchQuery, setSearchQuery] = useState('');
   const [alertMsg, setAlertMsg] = useState({ text: '', type: '' });
 

@@ -149,7 +149,11 @@ export default function LeaveApplicationPage() {
             <div className="glass-panel rounded-2xl p-8 text-center text-[#C4B5FD]/40 text-xs">No leave applications yet</div>
           ) : leaves.map(leave => {
             const lt = LEAVE_TYPES.find(l => l.value === leave.leave_type);
-            const status = STATUS_MAP[leave.status] || STATUS_MAP.pending;
+            const status = STATUS_MAP[leave.status] || {
+              label: 'Pending',
+              color: 'text-yellow-400 bg-yellow-500/20 border-yellow-500/30',
+              icon: <Clock className="w-3 h-3" />
+            };
             return (
               <div key={leave.id} className="glass-panel rounded-2xl p-5 border border-white/5 flex items-center gap-4">
                 <div className="text-2xl">{lt?.icon || '📄'}</div>

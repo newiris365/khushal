@@ -71,9 +71,18 @@ export default function MealSelectionPage() {
   const [saved, setSaved] = useState(false);
   const [optOut, setOptOut] = useState<Record<string, boolean>>({});
 
-  const studentId = typeof window !== 'undefined'
-    ? JSON.parse(localStorage.getItem('iris_user_profile') || '{}').id || 's0000000-0000-0000-0000-000000000001'
-    : 's0000000-0000-0000-0000-000000000001';
+  const [studentId] = useState(() => {
+    const fallback = 's0000000-0000-0000-0000-000000000001';
+    if (typeof window === 'undefined') return fallback;
+    try {
+      const raw = localStorage.getItem('iris_user_profile');
+      if (raw) {
+        const profile = JSON.parse(raw);
+        if (profile?.id) return profile.id;
+      }
+    } catch { /* invalid JSON */ }
+    return fallback;
+  });
 
   const dates = useMemo(() => {
     const result: { label: string; value: string; day: string }[] = [];
@@ -81,19 +90,20 @@ export default function MealSelectionPage() {
     for (let i = 0; i < 7; i++) {
       const d = new Date();
       d.setDate(d.getDate() + i);
-      const iso = d.toISOString().split('T')[0];
+      const iso = d.toISOString().split('T')[0] || '';
       result.push({
         value: iso,
         label: `${d.getDate()} ${d.toLocaleString('default', { month: 'short' })}`,
-        day: i === 0 ? 'Today' : days[d.getDay()],
+        day: i === 0 ? 'Today' : days[d.getDay()] || '',
       });
     }
     return result;
   }, []);
 
   useEffect(() => {
-    if (dates.length > 0 && !selectedDate) {
-      setSelectedDate(dates[0].value);
+    const firstDate = dates[0];
+    if (firstDate && !selectedDate) {
+      setSelectedDate(firstDate.value);
     }
     loadData();
   }, []);

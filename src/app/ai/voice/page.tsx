@@ -35,7 +35,7 @@ export default function VoiceChatPage() {
   const synthRef = useRef<SpeechSynthesis | null>(null);
   const amplitudeInterval = useRef<any>(null);
 
-  const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  const API = process.env.NEXT_PUBLIC_API_URL || '/api/v1';
 
   useEffect(() => {
     if (typeof window !== 'undefined') {

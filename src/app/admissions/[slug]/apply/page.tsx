@@ -253,7 +253,7 @@ export default function MultiStepApplyPage() {
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({
             doc_type: docKey === 'marksheet_12th' ? '12th_marksheet' : docKey === 'marksheet_10th' ? '10th_marksheet' : docKey,
-            doc_url: documentsList[docKey].url || `https://api.iris365.in/uploads/${docKey}.pdf`
+            doc_url: documentsList[docKey]?.url || `https://api.iris365.in/uploads/${docKey}.pdf`
           })
         });
       }
@@ -584,8 +584,8 @@ export default function MultiStepApplyPage() {
 
                 <div className="space-y-4">
                   {[1, 2, 3].map((order) => {
-                    const selVal = selectedPrograms[order - 1];
-                    const eligibility = programEligibility[selVal];
+                    const selVal = selectedPrograms[order - 1] || '';
+                    const eligibility = selVal ? programEligibility[selVal] : undefined;
                     return (
                       <div key={order} className="p-5 border border-[#6C2BD9]/20 rounded-2xl bg-[#13102A]/40 flex flex-col md:flex-row justify-between md:items-center gap-4">
                         <div className="flex-1">
@@ -781,13 +781,13 @@ export default function MultiStepApplyPage() {
                     { key: 'marksheet_10th', label: 'Class 10th Marksheet' },
                     { key: 'marksheet_12th', label: 'Class 12th Marksheet' }
                   ].map((doc) => {
-                    const isUploaded = !!documentsList[doc.key].url;
+                    const isUploaded = !!documentsList[doc.key]?.url;
                     return (
                       <div key={doc.key} className="p-4 border border-[#6C2BD9]/15 rounded-xl bg-[#13102A]/40 flex justify-between items-center gap-4 hover:border-[#6C2BD9]/30 transition-all">
                         <div>
                           <span className="font-bold text-xs block">{doc.label}</span>
                           <span className="text-[10px] text-[#A78BFA]/60 block mt-1">
-                            {isUploaded ? documentsList[doc.key].file_name : 'No file uploaded'}
+                            {isUploaded ? documentsList[doc.key]?.file_name : 'No file uploaded'}
                           </span>
                         </div>
                         <button

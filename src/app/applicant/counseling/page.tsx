@@ -47,7 +47,7 @@ export default function CandidateCounselingPage() {
           mode: 'online',
           meeting_link: 'https://meet.jit.si/siet-admissions-counseling-room-2026',
           venue: 'Room 204, Academic Block A',
-          scheduled_date: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+          scheduled_date: new Date(Date.now() + 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0] || ''
         }
       };
       setSlot(mockSlot);

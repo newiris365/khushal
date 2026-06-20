@@ -386,10 +386,11 @@ export default function HodAttendancePage() {
       <div className="bg-[#1A1530] border border-[#0891B2]/10 rounded-xl p-5">
         <h2 className="text-lg font-semibold mb-4">Subject-wise Top & Bottom Performers</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {Object.keys(mockStudents[0].subjects).map((subj) => {
+          {Object.keys(mockStudents[0]!.subjects).map((subj) => {
             const sorted = [...students].sort((a, b) => b.subjects[subj as keyof typeof b.subjects] - a.subjects[subj as keyof typeof a.subjects]);
             const top = sorted[0];
             const bottom = sorted[sorted.length - 1];
+            if (!top || !bottom) return null;
             return (
               <div key={subj} className="bg-[#0D0A1A] rounded-lg p-4 border border-[#0891B2]/5">
                 <h3 className="text-sm font-semibold text-[#0891B2] mb-3">{subj}</h3>

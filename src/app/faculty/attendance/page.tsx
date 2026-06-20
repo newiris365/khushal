@@ -70,10 +70,13 @@ export default function FacultyAttendancePage() {
     if (!selectedDept) return;
     setIsLoading(true);
     try {
-      const res = await apiGet('campusCore/faculty/attendance/shortage', {
+      const queryParams: Record<string, string> = {
         departmentId: selectedDept,
-        subject: selectedSubject || undefined,
-      });
+      };
+      if (selectedSubject) {
+        queryParams.subject = selectedSubject;
+      }
+      const res = await apiGet('campusCore/faculty/attendance/shortage', queryParams);
       if (res.success) setStudents(res.students || []);
     } catch (err) {
       console.error(err);

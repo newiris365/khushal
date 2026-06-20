@@ -51,7 +51,7 @@ export default function VendorHygienePage() {
         checklist_items: checks,
         compliance_score: mockScore
       });
-    } catch (err) {}
+    } catch (err) { console.error('Failed to submit hygiene checklist:', err); }
 
     setLoading(false);
     setSuccess(true);

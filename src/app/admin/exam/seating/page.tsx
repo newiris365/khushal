@@ -106,8 +106,9 @@ export default function ExamSeatingPage() {
 
   // Group seating by room
   const seatingByRoom = seating.reduce((acc, s) => {
-    if (!acc[s.room_number]) acc[s.room_number] = [];
-    acc[s.room_number].push(s);
+    const list = acc[s.room_number] || [];
+    list.push(s);
+    acc[s.room_number] = list;
     return acc;
   }, {} as Record<string, SeatingAllocation[]>);
 

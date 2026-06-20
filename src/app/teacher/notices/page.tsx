@@ -246,7 +246,7 @@ export default function TeacherNoticesPage() {
           ) : (
             filteredNotices.map(nt => {
               const isExpanded = expandedId === nt.id;
-              const catStyle = CATEGORY_STYLES[nt.category] || CATEGORY_STYLES.General;
+              const catStyle = CATEGORY_STYLES[nt.category] || { bg: 'bg-sky-500/15', text: 'text-sky-400', border: 'border-sky-500/30' };
 
               return (
                 <div

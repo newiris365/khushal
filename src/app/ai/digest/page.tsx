@@ -47,7 +47,7 @@ export default function WeeklyDigestPage() {
       // Sandbox fallback digest
       setDigest({
         user_id: 'mock_user',
-        compiled_date: new Date().toISOString().split('T')[0],
+        compiled_date: new Date().toISOString().split('T')[0] || '',
         attendance_summary: 'Overall present rate is 84% (Present 42 out of 50 classes). Subject breakdown looks healthy except Electronics which sits at 71%.',
         timetable_upcoming: ['Maths Review (Monday 9:00 AM)', 'Physics Practicals (Tuesday 11:30 AM)', 'Data Structures Terminal (Wednesday 2:00 PM)'],
         pending_fees: 'You have a pending overdue fee statement of ₹2,500 library fines checkouts.',

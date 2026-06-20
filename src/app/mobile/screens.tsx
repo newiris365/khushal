@@ -1602,7 +1602,7 @@ export function MobileLibraryGoalsScreen() {
           placeholderTextColor="#A78BFA"
           keyboardType="numeric"
           value={target.toString()}
-          onChangeText={text => setTarget(parseInt(text) || 0)}
+          onChangeText={(text: string) => setTarget(parseInt(text) || 0)}
           style={styles.mobileInput}
         />
         <TouchableOpacity style={styles.primaryBtn} onPress={handleUpdateTarget}>
@@ -2162,7 +2162,7 @@ export function MobileDirectorPLScreen() {
               <TextInput
                 keyboardType="numeric"
                 value={String(costs.staff)}
-                onChangeText={t => handleUpdateCost('staff', t)}
+                onChangeText={(t: string) => handleUpdateCost('staff', t)}
                 style={{ backgroundColor: '#0D0A1A', color: '#FFF', paddingHorizontal: 8, paddingVertical: 4, width: 80, borderRadius: 6, textAlign: 'right', fontSize: 11 }}
               />
             </View>
@@ -2171,7 +2171,7 @@ export function MobileDirectorPLScreen() {
               <TextInput
                 keyboardType="numeric"
                 value={String(costs.maintenance)}
-                onChangeText={t => handleUpdateCost('maintenance', t)}
+                onChangeText={(t: string) => handleUpdateCost('maintenance', t)}
                 style={{ backgroundColor: '#0D0A1A', color: '#FFF', paddingHorizontal: 8, paddingVertical: 4, width: 80, borderRadius: 6, textAlign: 'right', fontSize: 11 }}
               />
             </View>
@@ -2180,7 +2180,7 @@ export function MobileDirectorPLScreen() {
               <TextInput
                 keyboardType="numeric"
                 value={String(costs.utilities)}
-                onChangeText={t => handleUpdateCost('utilities', t)}
+                onChangeText={(t: string) => handleUpdateCost('utilities', t)}
                 style={{ backgroundColor: '#0D0A1A', color: '#FFF', paddingHorizontal: 8, paddingVertical: 4, width: 80, borderRadius: 6, textAlign: 'right', fontSize: 11 }}
               />
             </View>

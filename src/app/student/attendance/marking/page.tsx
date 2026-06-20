@@ -186,7 +186,15 @@ export default function StudentAttendanceMarkingPage() {
         const data = new Uint8Array(e.target?.result as ArrayBuffer);
         const workbook = XLSX.read(data, { type: 'array' });
         const sheetName = workbook.SheetNames[0];
+        if (!sheetName) {
+          setUploadErrors(['Excel workbook has no sheets.']);
+          return;
+        }
         const worksheet = workbook.Sheets[sheetName];
+        if (!worksheet) {
+          setUploadErrors(['Excel worksheet could not be loaded.']);
+          return;
+        }
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' }) as any[];
 
         if (jsonData.length === 0) {
@@ -242,7 +250,9 @@ export default function StudentAttendanceMarkingPage() {
   }, [processFile]);
 
   const applyUploadMapping = () => {
-    if (!uploadMapping.subject_code || !uploadMapping.status) {
+    const codeCol = uploadMapping.subject_code;
+    const statusCol = uploadMapping.status;
+    if (!codeCol || !statusCol) {
       setUploadErrors(['Please map both subject_code and status columns.']);
       return;
     }
@@ -252,8 +262,8 @@ export default function StudentAttendanceMarkingPage() {
     const matched: Record<string, string> = {};
 
     uploadPreview.forEach((row, i) => {
-      const code = row[uploadMapping.subject_code]?.trim();
-      const status = row[uploadMapping.status]?.trim().toLowerCase();
+      const code = row[codeCol]?.trim();
+      const status = row[statusCol]?.trim().toLowerCase();
       if (!code) { errors.push(`Row ${i + 1}: Missing subject_code`); return; }
       if (!validStatuses.includes(status)) { errors.push(`Row ${i + 1}: Invalid status "${status}"`); return; }
       const cls = todayClasses.find(c => c.subject_code === code);

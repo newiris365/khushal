@@ -71,13 +71,13 @@ export default function AdminSosDashboard() {
       if (res.success) {
         setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: 'resolved', resolved_at: new Date().toISOString() } : a));
         if (selectedAlert && selectedAlert.id === alertId) {
-          setSelectedAlert(prev => ({ ...prev, status: 'resolved', resolved_at: new Date().toISOString() }));
+          setSelectedAlert((prev: any) => ({ ...prev, status: 'resolved', resolved_at: new Date().toISOString() }));
         }
       }
     } catch {
       setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, status: 'resolved', resolved_at: new Date().toISOString() } : a));
       if (selectedAlert && selectedAlert.id === alertId) {
-        setSelectedAlert(prev => ({ ...prev, status: 'resolved', resolved_at: new Date().toISOString() }));
+        setSelectedAlert((prev: any) => ({ ...prev, status: 'resolved', resolved_at: new Date().toISOString() }));
       }
     } finally {
       setResolvingId(null);

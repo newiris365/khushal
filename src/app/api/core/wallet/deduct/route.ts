@@ -22,8 +22,10 @@ export async function POST(req: NextRequest) {
     if (authHeader) {
       try {
         const token = authHeader.replace('Bearer ', '');
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-        userId = payload.sub || payload.user_id || '';
+        const payloadBase64 = token.split('.')[1];
+        if (!payloadBase64) throw new Error('Invalid token format');
+        const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+        userId = payload.id || payload.sub || payload.user_id || '';
         institutionId = payload.institution_id || '';
       } catch {}
     }

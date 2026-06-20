@@ -21,8 +21,10 @@ export async function GET(req: NextRequest) {
       const token = authHeader.replace('Bearer ', '');
       let userId = '';
       try {
-        const payload = JSON.parse(Buffer.from(token.split('.')[1], 'base64').toString());
-        userId = payload.sub || payload.user_id || '';
+        const payloadBase64 = token.split('.')[1];
+        if (!payloadBase64) return NextResponse.json({ count: 0 });
+        const payload = JSON.parse(Buffer.from(payloadBase64, 'base64').toString());
+        userId = payload.id || payload.sub || payload.user_id || '';
       } catch {
         return NextResponse.json({ count: 0 });
       }

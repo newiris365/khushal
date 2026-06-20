@@ -110,7 +110,7 @@ export default function AdminSettingsPage() {
       ]);
 
       const backendUp = featResult?.success || permResult?.success;
-      setBackendAvailable(backendUp);
+      setBackendAvailable(backendUp ?? null);
 
       if (featResult?.success && featResult.features) {
         setFeatures(featResult.features);

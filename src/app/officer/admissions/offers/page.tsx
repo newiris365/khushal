@@ -41,7 +41,7 @@ export default function OfficerOffersPage() {
       if (res.success && res.merit_lists) {
         setMeritLists(res.merit_lists);
         if (res.merit_lists.length > 0) {
-          setSelectedListId(res.merit_lists[0].id);
+          setSelectedListId(res.merit_lists[0]?.id || '');
         }
       }
     } catch {
@@ -51,7 +51,7 @@ export default function OfficerOffersPage() {
         { id: 'ml-2', program_code: 'BTECH-AIDS', round_number: 1, list_type: 'merit', cutoff_score: 89.6 }
       ];
       setMeritLists(mockLists);
-      setSelectedListId(mockLists[0].id);
+      setSelectedListId(mockLists[0]?.id || '');
 
       // Mock offer log
       setOffersLog([
@@ -87,17 +87,15 @@ export default function OfficerOffersPage() {
       setTimeout(() => {
         setSuccess('Offers generated locally for all listed candidates under sandbox.');
         const targetList = meritLists.find(l => l.id === selectedListId);
-        const newOffers: OfferItem[] = [
-          {
-            id: `off-${Date.now()}`,
-            applicant_name: 'New Candidate A',
-            program_code: targetList?.program_code || 'BTECH-CSE',
-            status: 'sent',
-            offered_at: new Date().toISOString(),
-            expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
-          }
-        ];
-        setOffersLog(prev => [newOffers[0], ...prev]);
+        const newOffer: OfferItem = {
+          id: `off-${Date.now()}`,
+          applicant_name: 'New Candidate A',
+          program_code: targetList?.program_code || 'BTECH-CSE',
+          status: 'sent',
+          offered_at: new Date().toISOString(),
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString()
+        };
+        setOffersLog(prev => [newOffer, ...prev]);
         
         // Update metric
         setSeatsData(prev => prev.map(s => {

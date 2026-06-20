@@ -358,8 +358,11 @@ export default function FacultyCiaPage() {
                                 value={m._newMarks || ''}
                                 onChange={(e) => {
                                   const updated = [...marks];
-                                  updated[i]._newMarks = e.target.value;
-                                  setMarks(updated);
+                                  const item = updated[i];
+                                  if (item) {
+                                    item._newMarks = e.target.value;
+                                    setMarks(updated);
+                                  }
                                 }}
                                 className="w-20 bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm text-center"
                                 min="0"
@@ -378,8 +381,11 @@ export default function FacultyCiaPage() {
                                 value={m.remarks || ''}
                                 onChange={(e) => {
                                   const updated = [...marks];
-                                  updated[i].remarks = e.target.value;
-                                  setMarks(updated);
+                                  const item = updated[i];
+                                  if (item) {
+                                    item.remarks = e.target.value;
+                                    setMarks(updated);
+                                  }
                                 }}
                                 className="w-full bg-slate-700 border border-slate-600 rounded px-2 py-1 text-white text-sm"
                                 placeholder="Optional"

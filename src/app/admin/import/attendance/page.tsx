@@ -88,10 +88,10 @@ export default function AttendanceImportPage() {
 
   const mappedData = rawData.map((row) => {
     const mapped: ImportRow = {
-      student_roll: row[columnMapping.student_roll] || '',
-      subject: row[columnMapping.subject] || '',
-      date: row[columnMapping.date] || '',
-      status: row[columnMapping.status] || '',
+      student_roll: (columnMapping.student_roll && row[columnMapping.student_roll]) || '',
+      subject: (columnMapping.subject && row[columnMapping.subject]) || '',
+      date: (columnMapping.date && row[columnMapping.date]) || '',
+      status: (columnMapping.status && row[columnMapping.status]) || '',
       method: columnMapping.method ? row[columnMapping.method] : undefined,
       time_slot: columnMapping.time_slot ? row[columnMapping.time_slot] : undefined,
     };
@@ -248,7 +248,7 @@ export default function AttendanceImportPage() {
                 <label className="w-32 text-sm text-gray-300 font-medium">method (opt):</label>
                 <select
                   value={columnMapping.method || ''}
-                  onChange={(e) => setColumnMapping(prev => ({ ...prev, method: e.target.value || undefined }))}
+                  onChange={(e) => setColumnMapping(prev => ({ ...prev, method: e.target.value }))}
                   className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-violet-500/50 focus:outline-none"
                 >
                   <option value="">-- Not mapped --</option>
@@ -261,7 +261,7 @@ export default function AttendanceImportPage() {
                 <label className="w-32 text-sm text-gray-300 font-medium">time_slot (opt):</label>
                 <select
                   value={columnMapping.time_slot || ''}
-                  onChange={(e) => setColumnMapping(prev => ({ ...prev, time_slot: e.target.value || undefined }))}
+                  onChange={(e) => setColumnMapping(prev => ({ ...prev, time_slot: e.target.value }))}
                   className="flex-1 bg-white/5 border border-white/10 rounded-xl px-4 py-2.5 text-white text-sm focus:border-violet-500/50 focus:outline-none"
                 >
                   <option value="">-- Not mapped --</option>

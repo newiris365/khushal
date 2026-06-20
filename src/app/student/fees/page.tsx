@@ -18,7 +18,11 @@ export default function StudentFeesPage() {
   const [studentId, setStudentId] = useState('');
 
   useEffect(() => {
-    const profile = JSON.parse(localStorage.getItem('iris_user_profile') || '{}');
+    let profile: any = {};
+    try {
+      const raw = localStorage.getItem('iris_user_profile');
+      if (raw) profile = JSON.parse(raw);
+    } catch { /* invalid JSON */ }
     if (profile.id) setStudentId(profile.id);
 
     const script = document.createElement('script');
@@ -51,7 +55,11 @@ export default function StudentFeesPage() {
 
       // Load payment config
       try {
-        const profile = JSON.parse(localStorage.getItem('iris_user_profile') || '{}');
+        let profile: any = {};
+        const raw = localStorage.getItem('iris_user_profile');
+        if (raw) {
+          try { profile = JSON.parse(raw); } catch { /* invalid JSON */ }
+        }
         const instId = profile.institution_id;
         if (instId) {
           const { data } = await supabase

@@ -116,21 +116,22 @@ export default function LandingPage() {
     const timer = setInterval(() => {
       const logTypes = ["ATTENDANCE", "PAYMENT", "SECURITY", "HOSTEL", "TRANSIT", "AI"];
       const rollNums = ["23CSE051", "23CSE052", "23ECE012", "23ME005"];
-      const type = logTypes[Math.floor(Math.random() * logTypes.length)];
+      const type = logTypes[Math.floor(Math.random() * logTypes.length)] || "AI";
+      const rollNum = rollNums[Math.floor(Math.random() * rollNums.length)] || "23CSE051";
       let text = "";
 
       switch(type) {
         case "ATTENDANCE":
-          text = `Student ${rollNums[Math.floor(Math.random() * rollNums.length)]} checked-in via Biometric: Present`;
+          text = `Student ${rollNum} checked-in via Biometric: Present`;
           break;
         case "PAYMENT":
           text = `Canteen Order #${Math.floor(Math.random() * 9000 + 1000)} generated: INR ${Math.floor(Math.random() * 200 + 40)} via Wallet`;
           break;
         case "SECURITY":
-          text = `Gate pass check-out logged for student ${rollNums[Math.floor(Math.random() * rollNums.length)]}`;
+          text = `Gate pass check-out logged for student ${rollNum}`;
           break;
         case "HOSTEL":
-          text = `Gym booking slot atomic allocation complete for user ${rollNums[Math.floor(Math.random() * rollNums.length)]}`;
+          text = `Gym booking slot atomic allocation complete for user ${rollNum}`;
           break;
         case "TRANSIT":
           text = `GPS coordinate updated: Lat ${26.29 + (Math.random() - 0.5) * 0.01}, Long ${73.02 + (Math.random() - 0.5) * 0.01}`;

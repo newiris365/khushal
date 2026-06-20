@@ -80,9 +80,10 @@ export default function AdminMapComponent({ positions, onMarkerClick }: AdminMap
         iconAnchor: [14, 14]
       });
 
-      if (currentMarkers[pos.bus_id]) {
+      const existingMarker = currentMarkers[pos.bus_id];
+      if (existingMarker) {
         // Update location
-        currentMarkers[pos.bus_id].setLatLng([pos.latitude, pos.longitude]);
+        existingMarker.setLatLng([pos.latitude, pos.longitude]);
       } else {
         // Create new marker
         const marker = L.marker([pos.latitude, pos.longitude], { icon: busIcon })
@@ -97,7 +98,10 @@ export default function AdminMapComponent({ positions, onMarkerClick }: AdminMap
     Object.keys(currentMarkers).forEach(busId => {
       const exists = positions.some(p => p.bus_id === busId);
       if (!exists) {
-        currentMarkers[busId].remove();
+        const marker = currentMarkers[busId];
+        if (marker) {
+          marker.remove();
+        }
         delete currentMarkers[busId];
       }
     });

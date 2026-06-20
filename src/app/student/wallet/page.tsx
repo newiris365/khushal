@@ -42,7 +42,11 @@ export default function WalletPage() {
 
       // Load payment config for Razorpay
       try {
-        const profile = JSON.parse(localStorage.getItem('iris_user_profile') || '{}');
+        let profile: any = {};
+        const raw = localStorage.getItem('iris_user_profile');
+        if (raw) {
+          try { profile = JSON.parse(raw); } catch { /* invalid JSON */ }
+        }
         const instId = profile.institution_id;
         if (instId) {
           const { data } = await supabase

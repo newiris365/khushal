@@ -1,17 +1,19 @@
 const { createClient } = require('@supabase/supabase-js');
+const jwt = require('jsonwebtoken');
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+const JWT_SECRET = process.env.JWT_SECRET;
+
 /**
- * Decode a JWT or mock-sandbox token to extract user payload.
- * Returns null if it cannot be decoded.
+ * Verify a JWT token cryptographically. Returns decoded payload or null.
  */
 function decodeToken(token) {
   if (!token) return null;
 
-  // Handle mock sandbox tokens: mock-sandbox-jwt-token-value.<base64payload>
+  // Handle mock sandbox tokens
   if (token.startsWith('mock-sandbox-jwt-token-value.')) {
     try {
       const base64Part = token.replace('mock-sandbox-jwt-token-value.', '');
@@ -21,17 +23,16 @@ function decodeToken(token) {
     }
   }
 
-  // Handle standard 3-part JWT
-  try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      return JSON.parse(Buffer.from(parts[1], 'base64').toString());
-    }
-  } catch {
-    // fall through
+  // Verify standard JWT with signature check
+  if (!JWT_SECRET) {
+    console.error('Cannot verify JWT: JWT_SECRET not configured');
+    return null;
   }
-
-  return null;
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch {
+    return null;
+  }
 }
 
 exports.handler = async (event) => {

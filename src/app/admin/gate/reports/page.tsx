@@ -6,7 +6,7 @@ import { apiGet, apiFetchBlob } from '../../../../lib/api';
 import Link from 'next/link';
 
 export default function AdminGateReportsPage() {
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0] || '');
   const [downloading, setDownloading] = useState(false);
   
   // Preview stats state
